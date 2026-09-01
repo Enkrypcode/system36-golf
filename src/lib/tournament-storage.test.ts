@@ -8,7 +8,7 @@ const saved: SavedTournament = {
   name: "PETRO GOLF",
   roundCount: 1,
   rounds: [{ id: 1, courseId: 10, players: 1 }],
-  tournamentScores: { 1: [{ id: "player-1", name: "Imam Tajudi", handicap: 0, scores: Array(18).fill(4) }] },
+  tournamentScores: { 1: [{ id: "player-1", name: "Imam Tajudi", pairing: "1A", handicap: 0, scores: Array(18).fill(4) }] },
   flights: 2,
   flightLimits: [12],
 };

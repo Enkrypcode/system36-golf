@@ -1,6 +1,8 @@
 export type Player = {
   id: string;
   name: string;
+  /** Playing-group label for this round only; never used for tournament identity. */
+  pairing?: string;
   handicap: number;
   scores: Array<number | null>;
 };

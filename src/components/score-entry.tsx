@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { TournamentRound } from "@/components/app-client";
 import type { ScoringCourse } from "@/lib/course-catalog";
 import { pointForScore, scoreSummary, type Player } from "@/lib/scoring";
@@ -8,17 +8,23 @@ import { pointForScore, scoreSummary, type Player } from "@/lib/scoring";
 const makeBlankPlayers = (count: number): Player[] => Array.from({ length: count }, (_, index) => ({
   id: `player-${index + 1}`,
   name: "",
+  pairing: "",
   handicap: 0,
   scores: Array(18).fill(null),
 }));
-type SortKey = "original" | "hcp" | "gross" | "nett";
+type SortKey = "original" | "pairing" | "hcp" | "gross" | "nett";
 type SortState = { key: SortKey; direction: "asc" | "desc" };
 const originalSort: SortState = { key: "original", direction: "asc" };
 
+const pairingCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 const completeScorecard = (player: Player) => player.scores.length === 18 && player.scores.every((score) => score !== null);
+const normalizedPlayerName = (name: string) => name.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+const normalizedPairing = (pairing: string | undefined) => pairing?.trim().toLocaleUpperCase() ?? "";
 
 export function ScoreEntry({ tournamentName, rounds, courses, savedScores, onScoresChange, onBack, onContinue }: { tournamentName: string; rounds: TournamentRound[]; courses: Map<number, ScoringCourse>; savedScores: Record<number, Player[]>; onScoresChange: (scores: Record<number, Player[]>) => void; onBack: () => void; onContinue: (scores: Record<number, Player[]>) => void }) {
   const [roundId, setRoundId] = useState(rounds[0].id);
+  const pairingInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const gridInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [scoresByRound, setScoresByRound] = useState<Record<number, Player[]>>(() => Object.fromEntries(rounds.map((round) => {
     const restored = savedScores[round.id];
     return [round.id, restored?.length === round.players ? restored : makeBlankPlayers(round.players ?? 0)];
@@ -29,11 +35,23 @@ export function ScoreEntry({ tournamentName, rounds, courses, savedScores, onSco
   const players = scoresByRound[activeRound.id];
   const [sortByRound, setSortByRound] = useState<Record<number, SortState>>({});
   const [searchByRound, setSearchByRound] = useState<Record<number, string>>({});
+  const [pairingFilterByRound, setPairingFilterByRound] = useState<Record<number, string>>({});
   const activeSort = sortByRound[activeRound.id] ?? originalSort;
   const searchQuery = searchByRound[activeRound.id] ?? "";
+  const pairingFilter = pairingFilterByRound[activeRound.id] ?? "";
+  const pairingOptions = useMemo(() => Array.from(new Set(players.map((player) => normalizedPairing(player.pairing)).filter(Boolean))).sort(pairingCollator.compare), [players]);
+  const duplicatePlayerIds = useMemo(() => { const names = new Map<string, string[]>(); players.forEach((player) => { const normalized = normalizedPlayerName(player.name); if (normalized) names.set(normalized, [...(names.get(normalized) ?? []), player.id]); }); return new Set(Array.from(names.values()).filter((ids) => ids.length > 1).flat()); }, [players]);
   const displayedPlayers = useMemo(() => {
     const indexed = players.map((player, originalIndex) => ({ player, originalIndex, summary: completeScorecard(player) ? scoreSummary(player.scores, course.pars!) : null }));
     if (activeSort.key === "original") return indexed;
+    if (activeSort.key === "pairing") return indexed.sort((a, b) => {
+      const aPairing = normalizedPairing(a.player.pairing);
+      const bPairing = normalizedPairing(b.player.pairing);
+      if (!aPairing && !bPairing) return a.originalIndex - b.originalIndex;
+      if (!aPairing) return 1;
+      if (!bPairing) return -1;
+      return pairingCollator.compare(aPairing, bPairing) * (activeSort.direction === "asc" ? 1 : -1) || a.originalIndex - b.originalIndex;
+    });
     const valueFor = (item: typeof indexed[number]) => activeSort.key === "hcp" ? item.summary?.system36Handicap ?? null : activeSort.key === "gross" ? item.summary?.gross ?? null : item.summary?.nett ?? null;
     return indexed.sort((a, b) => {
       const aValue = valueFor(a); const bValue = valueFor(b);
@@ -47,16 +65,38 @@ export function ScoreEntry({ tournamentName, rounds, courses, savedScores, onSco
     const previous = current[activeRound.id] ?? originalSort;
     return { ...current, [activeRound.id]: key === "original" ? { key, direction: "asc" } : { key, direction: previous.key === key && previous.direction === "asc" ? "desc" : "asc" } };
   });
-  const visiblePlayers = displayedPlayers.filter(({ player }) => player.name.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase()));
+  const visiblePlayers = displayedPlayers.filter(({ player }) => player.name.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase()) && (!pairingFilter || normalizedPairing(player.pairing) === pairingFilter));
+  const moveGridFocus = (event: React.KeyboardEvent<HTMLInputElement>, playerId: string, column: number, isTextField = false) => {
+    const { key, currentTarget } = event;
+    if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(key)) return;
+    if (isTextField && key === "ArrowLeft" && (currentTarget.selectionStart ?? 0) > 0) return;
+    if (isTextField && key === "ArrowRight" && (currentTarget.selectionEnd ?? 0) < currentTarget.value.length) return;
+    event.preventDefault();
+    const currentRow = visiblePlayers.findIndex(({ player }) => player.id === playerId);
+    const targetRow = key === "ArrowUp" ? Math.max(0, currentRow - 1) : key === "ArrowDown" ? Math.min(visiblePlayers.length - 1, currentRow + 1) : currentRow;
+    const targetColumn = key === "ArrowLeft" ? Math.max(0, column - 1) : key === "ArrowRight" ? Math.min(19, column + 1) : column;
+    const target = visiblePlayers[targetRow]?.player;
+    const input = target && gridInputRefs.current[`${target.id}:${targetColumn}`];
+    if (input) { input.focus({ preventScroll: true }); input.select(); input.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" }); }
+  };
   const updateScore = (playerId: string, hole: number, raw: string) => {
     if (raw !== "" && (!/^\d{1,2}$/.test(raw) || Number(raw) < 1 || Number(raw) > 15)) return;
     setScoresByRound((current) => ({ ...current, [activeRound.id]: current[activeRound.id].map((player) => player.id === playerId ? { ...player, scores: player.scores.map((score, index) => index === hole ? (raw === "" ? null : Number(raw)) : score) } : player) }));
   };
   const updatePlayerName = (playerId: string, name: string) => setScoresByRound((current) => ({ ...current, [activeRound.id]: current[activeRound.id].map((player) => player.id === playerId ? { ...player, name } : player) }));
+  const updatePairing = (playerId: string, pairing: string) => setScoresByRound((current) => ({ ...current, [activeRound.id]: current[activeRound.id].map((player) => player.id === playerId ? { ...player, pairing } : player) }));
   return <section className="scoring-step"><div className="score-step-heading"><div><p>STEP 2 · {tournamentName}</p><h1>Score entry</h1><span>Enter player names and scores left to right. Tab moves to the next cell; Shift + Tab moves back.</span></div><div className="score-heading-actions"><button className="secondary-button" onClick={onBack}>← Edit tournament</button></div></div>
     <div className="round-tabs">{rounds.map((round, index) => <button className={round.id === activeRound.id ? "active" : ""} key={round.id} onClick={() => setRoundId(round.id)}>Round {index + 1} — {courses.get(round.courseId ?? -1)?.name}</button>)}</div>
-    <div className="score-toolbar"><label className="player-search"><input type="search" value={searchQuery} onChange={(event) => setSearchByRound((current) => ({ ...current, [activeRound.id]: event.target.value }))} placeholder="Search player..." aria-label="Search player" />{searchQuery && <button type="button" aria-label="Clear player search" onClick={() => setSearchByRound((current) => ({ ...current, [activeRound.id]: "" }))}>×</button>}</label><div className="score-sort-controls" aria-label="Sort score entry"><span>Sort:</span>{(["original", "hcp", "gross", "nett"] as SortKey[]).map((key) => { const label = key === "original" ? "Original" : key === "hcp" ? "HCP 36" : key[0].toUpperCase() + key.slice(1); const selected = activeSort.key === key; return <button type="button" className={selected ? "active" : ""} key={key} onClick={() => chooseSort(key)}>{label}{selected && key !== "original" ? activeSort.direction === "asc" ? " ↑" : " ↓" : ""}</button>; })}</div></div>
-    {visiblePlayers.length ? <div className="score-table-wrap simple-score-table-wrap"><table className="score-table"><thead><tr className="par-row"><th className="sticky-number">Par</th><th className="sticky-player">{course.name.toUpperCase()}</th>{course.pars!.map((par, index) => <th key={index}>{par}</th>)}<th colSpan={6}>SYSTEM 36</th></tr><tr className="column-row"><th className="sticky-number">No</th><th className="sticky-player">Player Name</th>{Array.from({ length: 18 }, (_, index) => <th key={index}>{index + 1}</th>)}<th>Front</th><th>Back</th><th>Gross</th><th>HCP 36</th><th>Nett</th><th>Point</th></tr></thead><tbody>{visiblePlayers.map(({ player, originalIndex, summary }) => { const frontComplete = player.scores.slice(0, 9).every((score) => score !== null); const backComplete = player.scores.slice(9).every((score) => score !== null); const front = frontComplete ? player.scores.slice(0, 9).reduce<number>((total, score) => total + (score ?? 0), 0) : null; const back = backComplete ? player.scores.slice(9).reduce<number>((total, score) => total + (score ?? 0), 0) : null; return <tr key={player.id}><td className="sticky-number row-index">{originalIndex + 1}</td><td className="sticky-player player-name"><input aria-label={`Player name, row ${originalIndex + 1}`} type="text" value={player.name} onChange={(event) => updatePlayerName(player.id, event.target.value)} onFocus={(event) => event.currentTarget.select()} /></td>{player.scores.map((score, holeIndex) => { const highlight = score !== null && pointForScore(score, course.pars![holeIndex]) >= 3 ? "good-score" : ""; return <td className={`score-cell ${highlight}`} key={holeIndex}><input aria-label={`${player.name || `Row ${originalIndex + 1}`}, hole ${holeIndex + 1}`} type="text" inputMode="numeric" value={score ?? ""} onChange={(event) => updateScore(player.id, holeIndex, event.target.value)} onFocus={(event) => event.currentTarget.select()} /></td>; })}<td className="summary-cell">{front ?? "—"}</td><td className="summary-cell">{back ?? "—"}</td><td className="summary-cell gross">{summary?.gross ?? "—"}</td><td className="summary-cell">{summary?.system36Handicap ?? "—"}</td><td className="summary-cell nett">{summary?.nett ?? "—"}</td><td className="summary-cell points">{summary?.points ?? "—"}</td></tr>; })}</tbody></table></div> : <p className="no-player-found">No player found</p>}
+    <div className="score-toolbar"><label className="player-search"><input type="search" value={searchQuery} onChange={(event) => setSearchByRound((current) => ({ ...current, [activeRound.id]: event.target.value }))} placeholder="Search player..." aria-label="Search player" />{searchQuery && <button type="button" aria-label="Clear player search" onClick={() => setSearchByRound((current) => ({ ...current, [activeRound.id]: "" }))}>×</button>}</label><label className="pairing-filter"><span>Pairing:</span><select value={pairingFilter} onChange={(event) => setPairingFilterByRound((current) => ({ ...current, [activeRound.id]: event.target.value }))} aria-label="Filter by pairing"><option value="">All Pairings</option>{pairingOptions.map((pairing) => <option key={pairing} value={pairing}>{pairing}</option>)}</select></label><div className="score-sort-controls" aria-label="Sort score entry"><span>Sort:</span>{(["original", "pairing", "hcp", "gross", "nett"] as SortKey[]).map((key) => { const label = key === "original" ? "Original" : key === "pairing" ? "Pairing" : key === "hcp" ? "HCP 36" : key[0].toUpperCase() + key.slice(1); const selected = activeSort.key === key; return <button type="button" className={selected ? "active" : ""} key={key} onClick={() => chooseSort(key)}>{label}{selected && key !== "original" ? activeSort.direction === "asc" ? " ↑" : " ↓" : ""}</button>; })}</div></div>
+    {visiblePlayers.length ? <div className="score-table-wrap simple-score-table-wrap"><table className="score-table"><colgroup><col className="score-col-number" /><col className="score-col-player" /><col className="score-col-pairing" />{Array.from({ length: 18 }, (_, index) => <col className="score-col-hole" key={`hole-${index}`} />)}{Array.from({ length: 6 }, (_, index) => <col className="score-col-summary" key={`summary-${index}`} />)}</colgroup><thead><tr className="par-row"><th className="sticky-number">Par</th><th className="sticky-player">{course.name.toUpperCase()}</th><th className="sticky-pairing"></th>{course.pars!.map((par, index) => <th key={index}>{par}</th>)}<th colSpan={6}>SYSTEM 36</th></tr><tr className="column-row"><th className="sticky-number">No</th><th className="sticky-player">Player Name</th><th className="sticky-pairing">Pairing</th>{Array.from({ length: 18 }, (_, index) => <th key={index}>{index + 1}</th>)}<th>Front</th><th>Back</th><th>Gross</th><th>HCP 36</th><th>Nett</th><th>Point</th></tr></thead><tbody>{visiblePlayers.map(({ player, originalIndex, summary }) => { const frontComplete = player.scores.slice(0, 9).every((score) => score !== null); const backComplete = player.scores.slice(9).every((score) => score !== null); const front = frontComplete ? player.scores.slice(0, 9).reduce<number>((total, score) => total + (score ?? 0), 0) : null; const back = backComplete ? player.scores.slice(9).reduce<number>((total, score) => total + (score ?? 0), 0) : null; return <tr key={player.id}><td className="sticky-number row-index">{originalIndex + 1}</td><td className={`sticky-player player-name ${duplicatePlayerIds.has(player.id) ? "duplicate-player" : ""}`}><input aria-label={`Player name, row ${originalIndex + 1}`} type="text" value={player.name} ref={(element) => { gridInputRefs.current[`${player.id}:0`] = element; }} onChange={(event) => updatePlayerName(player.id, event.target.value)} onKeyDown={(event) => moveGridFocus(event, player.id, 0, true)} onFocus={(event) => event.currentTarget.select()} />{duplicatePlayerIds.has(player.id) && <small className="duplicate-player-warning">Duplicate player in this round</small>}</td><td className="sticky-pairing pairing-cell"><input aria-label={`Pairing, row ${originalIndex + 1}`} type="text" value={player.pairing ?? ""} ref={(element) => { pairingInputRefs.current[player.id] = element; gridInputRefs.current[`${player.id}:1`] = element; }} onChange={(event) => updatePairing(player.id, event.target.value)} onBlur={(event) => updatePairing(player.id, normalizedPairing(event.target.value))} onKeyDown={(event) => moveGridFocus(event, player.id, 1, true)} onFocus={(event) => event.currentTarget.select()} /></td>{player.scores.map((score, holeIndex) => { const highlight = score !== null && pointForScore(score, course.pars![holeIndex]) >= 3 ? "good-score" : ""; return <td className={`score-cell ${highlight}`} key={holeIndex}><input aria-label={`${player.name || `Row ${originalIndex + 1}`}, hole ${holeIndex + 1}`} type="text" inputMode="numeric" value={score ?? ""} ref={(element) => { gridInputRefs.current[`${player.id}:${holeIndex + 2}`] = element; }} onChange={(event) => updateScore(player.id, holeIndex, event.target.value)} onKeyDown={(event) => moveGridFocus(event, player.id, holeIndex + 2)} onFocus={(event) => event.currentTarget.select()} /></td>; })}<td className="summary-cell">{front ?? "—"}</td><td className="summary-cell">{back ?? "—"}</td><td className="summary-cell gross">{summary?.gross ?? "—"}</td><td className="summary-cell">{summary?.system36Handicap ?? "—"}</td><td className="summary-cell nett">{summary?.nett ?? "—"}</td><td className="summary-cell points">{summary?.points ?? "—"}</td></tr>; })}</tbody></table></div> : <p className="no-player-found">No player found</p>}
     <footer className="score-footer"><span>{players.length} players · Par {course.pars!.reduce((total, par) => total + par, 0)}</span><button className="primary-button" onClick={() => onContinue(scoresByRound)}>Continue to Winners →</button></footer>
   </section>;
 }
+
+
+
+
+
+
+
+

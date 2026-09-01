@@ -18,6 +18,7 @@ const isObject = (value: unknown): value is Record<string, unknown> => typeof va
 const isScore = (value: unknown) => value === null || (Number.isInteger(value) && (value as number) >= 1 && (value as number) <= 15);
 const isPlayer = (value: unknown): value is Player => isObject(value)
   && typeof value.id === "string"
+  && (value.pairing === undefined || typeof value.pairing === "string")
   && typeof value.name === "string"
   && typeof value.handicap === "number"
   && Number.isFinite(value.handicap)
@@ -57,7 +58,7 @@ export function parseSavedTournament(raw: string | null): SavedTournament | null
     for (const [roundId, players] of Object.entries(value.tournamentScores)) {
       const id = Number(roundId);
       if (!Number.isInteger(id) || !ids.has(id) || !Array.isArray(players) || !players.every(isPlayer)) return null;
-      tournamentScores[id] = players;
+      tournamentScores[id] = players.map((player) => ({ ...player, pairing: player.pairing?.trim().toLocaleUpperCase() }));
     }
     return {
       version: 1,
@@ -75,3 +76,4 @@ export function parseSavedTournament(raw: string | null): SavedTournament | null
 }
 
 export const serializeTournament = (tournament: SavedTournament) => JSON.stringify(tournament);
+

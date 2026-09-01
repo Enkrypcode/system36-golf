@@ -15,7 +15,8 @@ export type TournamentRound = { id: number; courseId: number | null; players: nu
 
 const blankRound = (id: number): TournamentRound => ({ id, courseId: null, players: null });
 const awardMetric = (award: Award) => award.code.startsWith("BG") ? "Gross" : "Nett";
-const countbackNote = (award: Award) => !award.countbackStage ? "" : `Won by ${award.countbackStage}${award.tiedOpponents?.length === 1 ? ` vs ${award.tiedOpponents[0].name}` : award.tiedOpponents && award.tiedOpponents.length <= 3 ? ` vs ${award.tiedOpponents.map((player) => player.name).join(", ")}` : ` over ${award.tiedOpponents?.length} tied players`}`;
+const tieBreakStage = (award: Award) => award.countbackStage === "HCP" ? "Lower HCP" : award.countbackStage;
+const tieBreakOpponents = (award: Award) => !award.tiedOpponents?.length ? "" : award.tiedOpponents.length <= 3 ? award.tiedOpponents.map((player) => player.name).join(", ") : `${award.tiedOpponents.length} tied players`;
 
 export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) {
   const [step, setStep] = useState<Step>(1);
@@ -27,6 +28,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
   const [expandedFlights, setExpandedFlights] = useState<Record<string, boolean>>({});
   const [tournamentScores, setTournamentScores] = useState<Record<number, Player[]>>({});
   const [storageReady, setStorageReady] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"saving" | "saved" | "failed">("saved");
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [showLoadDataDialog, setShowLoadDataDialog] = useState(false);
   const [showReplaceDataDialog, setShowReplaceDataDialog] = useState(false);
@@ -95,7 +97,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
     if (!storageReady || !hasTournamentData) return;
     const timeout = window.setTimeout(() => {
       const saved: SavedTournament = { version: 1, step, name, roundCount, rounds, tournamentScores, flights, flightLimits };
-      try { window.localStorage.setItem(TOURNAMENT_STORAGE_KEY, serializeTournament(saved)); } catch { /* Local saving is best-effort. */ }
+      try { window.localStorage.setItem(TOURNAMENT_STORAGE_KEY, serializeTournament(saved)); setSaveStatus("saved"); } catch { setSaveStatus("failed"); }
     }, 300);
     return () => window.clearTimeout(timeout);
   }, [flightLimits, flights, hasTournamentData, name, roundCount, rounds, step, storageReady, tournamentScores]);
@@ -170,7 +172,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
   };
 
   return <main className="simple-tool">
-    <header className="simple-header"><div className="simple-brand"><b>36</b><span>System 36 <small>Tournament Scoring</small></span></div><div className="stepper">{([1, 2, 3] as Step[]).map((item) => <span className={step === item ? "active" : step > item ? "done" : ""} key={item}><b>{item}</b>{item === 1 ? "Tournament" : item === 2 ? "Score Entry" : "Winners"}</span>)}</div><button className="load-data-button" type="button" onClick={() => setShowLoadDataDialog(true)}>Load Data</button><button className="new-tournament-button" type="button" onClick={() => setShowResetDialog(true)}>New Tournament</button></header>
+    <header className="simple-header"><div className="simple-brand"><b>36</b><span>System 36 <small>Tournament Scoring</small></span></div><div className="stepper">{([1, 2, 3] as Step[]).map((item) => <span className={step === item ? "active" : step > item ? "done" : ""} key={item}><b>{item}</b>{item === 1 ? "Tournament" : item === 2 ? "Score Entry" : "Winners"}</span>)}</div><span className={`autosave-status ${saveStatus}`} role="status">{saveStatus === "saving" ? "Saving..." : saveStatus === "failed" ? "Save failed" : "✓ Saved"}</span><button className="load-data-button" type="button" onClick={() => setShowLoadDataDialog(true)}>Load Data</button><button className="new-tournament-button" type="button" onClick={() => setShowResetDialog(true)}>New Tournament</button></header>
     <section className="simple-content">
       {step === 1 && <section className="setup-step"><div className="step-intro"><p>STEP 1</p><h1>Tournament setup</h1><span>Choose the tournament and its rounds. Course pars load automatically.</span></div>{fixtureLoadError && <p className="validation-error">{fixtureLoadError}</p>}
         <label className="wide-field">Tournament name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Enter tournament name" /></label>
@@ -199,7 +201,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
         <p className="flight-ranges">{Array.from({ length: flights }, (_, index) => `Flight ${String.fromCharCode(65 + index)}: ${flightRange(index)}`).join(" · ")}</p>
         <p className="flight-ranges">Tournament HCP: {hcpRange} · {Array.from({ length: flights }, (_, index) => `Flight ${String.fromCharCode(65 + index)}: ${winnerResult.flights[String.fromCharCode(65 + index)]?.length ?? 0} players`).join(" · ")}</p>
         {winnerResult.validationError && <p className="validation-error">{winnerResult.validationError}</p>}
-        <p className="eligibility-summary">Eligible: <b>{winnerResult.eligible.length}</b> players <span>•</span> Not eligible: <b>{winnerResult.notEligible}</b> players</p>
+        <p className="eligibility-summary">Eligible: <b>{winnerResult.eligible.length}</b> players <span>•</span> Not eligible: <b>{winnerResult.notEligible}</b> players</p><aside className="tie-break-rules"><b>Tie-break Rules</b><span><strong>Nett awards</strong> Lower HCP → CB9 → CB6 → CB3 → CB1</span><span><strong>Gross awards</strong> CB9 → CB6 → CB3 → CB1</span><small>Applied only when the primary result is tied.</small></aside>
         <div className="flight-memberships">
           {Array.from({ length: flights }, (_, index) => {
             const flight = String.fromCharCode(65 + index);
@@ -223,7 +225,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
                 <strong>{award.winner.name}</strong>
                 <small>{awardMetric(award)} {awardMetric(award) === "Gross" ? award.winner.aggregateGross : award.winner.aggregateNett}</small>
                 <em>{(awardMetric(award) === "Gross" ? award.winner.roundGross : award.winner.roundNett).map((value, index) => `R${index + 1} ${value}`).join(" + ")}</em>
-                {award.countbackStage && <em>{countbackNote(award)}</em>}
+                {award.countbackStage && <em>Tie-break: {tieBreakStage(award)}{tieBreakOpponents(award) && <><br />vs {tieBreakOpponents(award)}</>}</em>}
               </span> : <span>{award?.tied ? "TIE — Manual Decision" : title === "Overall" ? "No eligible player" : "No player in this flight"}</span>}</div>;
             })}
           </article>)}
@@ -234,6 +236,11 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
     {showResetDialog && <div className="reset-backdrop" role="presentation"><section className="reset-dialog" role="dialog" aria-modal="true" aria-labelledby="reset-title"><h2 id="reset-title">Start a new tournament?</h2><p>Your current tournament data, player names, scores, rounds, and winner settings will be cleared. This action cannot be undone.</p><div><button className="secondary-button" type="button" disabled={resetting} onClick={() => setShowResetDialog(false)}>Cancel</button><button className="reset-confirm-button" type="button" disabled={resetting} onClick={startNewTournament}>{resetting ? "Starting…" : "Start New Tournament"}</button></div></section></div>}
     {showLoadDataDialog && <div className="reset-backdrop" role="presentation"><section className="load-data-dialog" role="dialog" aria-modal="true" aria-labelledby="load-data-title"><h2 id="load-data-title">Load Tournament Data</h2><article><h3>KBP &amp; JNG Historical Data</h3><p>Round 1: Parahyangan Golf Bandung <b>40 players</b></p><p>Round 2: Jatinangor National Golf &amp; Resort <b>29 players</b></p></article><div><button className="secondary-button" type="button" onClick={() => setShowLoadDataDialog(false)}>Cancel</button><button className="primary-button" type="button" onClick={requestHistoricalDataLoad}>Load</button></div></section></div>}
     {showReplaceDataDialog && <div className="reset-backdrop" role="presentation"><section className="reset-dialog" role="dialog" aria-modal="true" aria-labelledby="replace-data-title"><h2 id="replace-data-title">Replace current tournament?</h2><p>Loading this data will replace the current tournament, player names, scores, rounds, and winner settings.</p><div><button className="secondary-button" type="button" onClick={() => setShowReplaceDataDialog(false)}>Cancel</button><button className="reset-confirm-button" type="button" onClick={loadKbpJngTestData}>Replace &amp; Load</button></div></section></div>}
-    <div className="winner-export-canvas" aria-hidden="true"><section className="winner-export-sheet" ref={exportSheetRef}><header><p>System 36 Tournament Scoring</p><h1>{name || "System 36 Tournament"}</h1><span>{rounds.length} {rounds.length === 1 ? "Round" : "Rounds"} · {roundSummary.join("  |  ")}</span></header><div className="winner-export-summary"><div><b>{winnerResult.eligible.length}</b><span>Eligible players</span></div><div><b>{winnerResult.notEligible}</b><span>Not eligible</span></div><div><b>{flights}</b><span>{flights === 1 ? "Flight" : "Flights"}</span></div></div><p className="winner-export-ranges">{Array.from({ length: flights }, (_, index) => `Flight ${String.fromCharCode(65 + index)}: ${flightRange(index)}`).join(" · ")}</p><div className="winner-export-awards">{awardSections.map(([title, codes]) => <article key={title}><h2>{title}</h2>{codes.map((code) => { const award = winnerResult.awards.find((item) => item.code === code); const metric = award ? awardMetric(award) : ""; return <div className="winner-export-award" key={code}><b>{code}</b>{award?.winner ? <span><strong>{award.winner.name}</strong><small>{metric} {metric === "Gross" ? award.winner.aggregateGross : award.winner.aggregateNett}</small><em>{(metric === "Gross" ? award.winner.roundGross : award.winner.roundNett).map((value, index) => `R${index + 1} ${value}`).join(" + ")}</em>{award.countbackStage && <i>{countbackNote(award)}</i>}</span> : <span>{award?.tied ? "TIE — Manual Decision" : "No player awarded"}</span>}</div>; })}</article>)}</div><footer>Generated by System 36 Tournament Scoring · {exportTimestamp}</footer></section></div>
+    <div className="winner-export-canvas" aria-hidden="true"><section className="winner-export-sheet" ref={exportSheetRef}><header><p>System 36 Tournament Scoring</p><h1>{name || "System 36 Tournament"}</h1><span>{rounds.length} {rounds.length === 1 ? "Round" : "Rounds"} · {roundSummary.join("  |  ")}</span></header><div className="winner-export-summary"><div><b>{winnerResult.eligible.length}</b><span>Eligible players</span></div><div><b>{winnerResult.notEligible}</b><span>Not eligible</span></div><div><b>{flights}</b><span>{flights === 1 ? "Flight" : "Flights"}</span></div></div><p className="winner-export-ranges">{Array.from({ length: flights }, (_, index) => `Flight ${String.fromCharCode(65 + index)}: ${flightRange(index)}`).join(" · ")}</p><div className="winner-export-awards">{awardSections.map(([title, codes]) => <article key={title}><h2>{title}</h2>{codes.map((code) => { const award = winnerResult.awards.find((item) => item.code === code); const metric = award ? awardMetric(award) : ""; return <div className="winner-export-award" key={code}><b>{code}</b>{award?.winner ? <span><strong>{award.winner.name}</strong><small>{metric} {metric === "Gross" ? award.winner.aggregateGross : award.winner.aggregateNett}</small><em>{(metric === "Gross" ? award.winner.roundGross : award.winner.roundNett).map((value, index) => `R${index + 1} ${value}`).join(" + ")}</em>{award.countbackStage && <i>Tie-break: {tieBreakStage(award)}{tieBreakOpponents(award) && <><br />vs {tieBreakOpponents(award)}</>}</i>}</span> : <span>{award?.tied ? "TIE — Manual Decision" : "No player awarded"}</span>}</div>; })}</article>)}</div><footer>Generated by System 36 Tournament Scoring · {exportTimestamp}</footer></section></div>
   </main>;
 }
+
+
+
+
+

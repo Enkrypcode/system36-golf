@@ -2,7 +2,7 @@ import { scoreSummary, type Player } from "./scoring.ts";
 
 export type TournamentRoundScores = { id: number; pars: number[]; players: Player[] };
 export type TournamentPlayer = { key: string; name: string; aggregateGross: number; aggregateNett: number; averageHcp36: number; roundGross: number[]; roundNett: number[]; finalScores: number[]; finalHcp36: number; flight?: string };
-export type Award = { code: string; label: string; winner?: TournamentPlayer; tied?: TournamentPlayer[]; tiedOpponents?: TournamentPlayer[]; countbackStage?: "CB9" | "CB6" | "CB3" | "CB1" };
+export type Award = { code: string; label: string; winner?: TournamentPlayer; tied?: TournamentPlayer[]; tiedOpponents?: TournamentPlayer[]; countbackStage?: "HCP" | "CB9" | "CB6" | "CB3" | "CB1" };
 export type WinnerResult = { eligible: TournamentPlayer[]; notEligible: number; flights: Record<string, TournamentPlayer[]>; awards: Award[]; validationError?: string };
 
 const keyFor = (player: Player) => player.id || player.name.trim().toLocaleLowerCase();
@@ -22,7 +22,9 @@ function selectAward(code: string, label: string, candidates: TournamentPlayer[]
   const lowest = Math.min(...candidates.map((candidate) => candidate[metric]));
   const metricTies = candidates.filter((candidate) => candidate[metric] === lowest);
   const nett = metric === "aggregateNett";
-  const sorted = [...metricTies].sort((a, b) => {
+  const hcpTies = nett ? metricTies.filter((candidate) => candidate.averageHcp36 === Math.min(...metricTies.map((candidate) => candidate.averageHcp36))) : metricTies;
+  if (nett && hcpTies.length === 1) return { code, label, winner: hcpTies[0], countbackStage: "HCP", tiedOpponents: metricTies.filter((candidate) => candidate.key !== hcpTies[0].key) };
+  const sorted = [...hcpTies].sort((a, b) => {
     const aCountback = countbackValues(a, nett); const bCountback = countbackValues(b, nett);
     for (let index = 0; index < aCountback.length; index++) if (aCountback[index] !== bCountback[index]) return aCountback[index] - bCountback[index];
     return 0;
@@ -30,10 +32,9 @@ function selectAward(code: string, label: string, candidates: TournamentPlayer[]
   const winner = sorted[0];
   const sameCountback = sorted.filter((candidate) => countbackValues(candidate, nett).every((value, index) => value === countbackValues(winner, nett)[index]));
   if (sameCountback.length > 1) return { code, label, tied: sameCountback };
-  const countbackStage = metricTies.length > 1 ? (["CB9", "CB6", "CB3", "CB1"] as const)[countbackValues(winner, nett).findIndex((value, index) => value !== countbackValues(sorted[1], nett)[index])] : undefined;
-  return { code, label, winner, countbackStage, tiedOpponents: metricTies.filter((candidate) => candidate.key !== winner.key) };
+  const countbackStage = hcpTies.length > 1 ? (["CB9", "CB6", "CB3", "CB1"] as const)[countbackValues(winner, nett).findIndex((value, index) => value !== countbackValues(sorted[1], nett)[index])] : undefined;
+  return { code, label, winner, countbackStage, tiedOpponents: hcpTies.filter((candidate) => candidate.key !== winner.key) };
 }
-
 export function calculateTournamentWinners(rounds: TournamentRoundScores[], flightCount: number, flightLimits: number[] = []): WinnerResult {
   if (!rounds.length) return { eligible: [], notEligible: 0, flights: {}, awards: [] };
   const entries = new Map<string, Map<number, Player>>();
@@ -71,3 +72,4 @@ export function calculateTournamentWinners(rounds: TournamentRoundScores[], flig
   }
   return { eligible, notEligible: entries.size - eligible.length, flights, awards };
 }
+
