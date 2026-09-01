@@ -1,0 +1,35 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { loadCourseCatalog } from "./course-catalog.ts";
+import { loadKbpJngTestFixture } from "./real-test-fixture.ts";
+import { calculateTournamentWinners } from "./winner-engine.ts";
+
+test("KBP/JNG historical fixture keeps aliases stable and reproduces the regression results", () => {
+  const courses = loadCourseCatalog();
+  const fixture = loadKbpJngTestFixture(courses);
+  assert.ok(fixture);
+  assert.equal(fixture.rounds[0].players, 40);
+  assert.equal(fixture.rounds[1].players, 29);
+  assert.equal(fixture.scores[1].length, 40, "Round 1 passes all editable player rows to Score Entry");
+  assert.equal(fixture.scores[2].length, 29, "Round 2 passes all editable player rows to Score Entry");
+  assert.deepEqual(fixture.scores[1][0].scores, [4, 6, 7, 6, 4, 5, 5, 3, 4, 4, 4, 3, 4, 5, 3, 5, 6, 4]);
+  assert.equal(fixture.scores[1][0].name, "Imam Tajudi");
+  assert.equal(fixture.scores[2][0].name, "Abdul Manan");
+  const courseById = new Map(courses.map((course) => [course.id, course]));
+  const result = calculateTournamentWinners(fixture.rounds.map((round) => ({ id: round.id, pars: courseById.get(round.courseId)!.pars!, players: fixture.scores[round.id] })), 1);
+  assert.equal(result.eligible.length, 26);
+  const abdul = result.eligible.find((player) => player.name === "Abdul Manan");
+  assert.deepEqual(abdul?.roundGross, [82, 83]);
+  assert.equal(abdul?.aggregateGross, 165);
+  assert.deepEqual(abdul?.roundNett, [71, 70]);
+  assert.equal(abdul?.aggregateNett, 141);
+  const bgo = result.awards.find((award) => award.code === "BGO");
+  const bno = result.awards.find((award) => award.code === "BNO");
+  assert.equal(bgo?.winner?.name, "Abdul Manan");
+  assert.equal(bgo?.winner?.aggregateGross, 165);
+  assert.equal(bno?.winner?.name, "Elga Sinaga");
+  assert.equal(bno?.winner?.aggregateNett, 142);
+  assert.deepEqual(bno?.winner?.roundNett, [72, 70]);
+  assert.equal(bno?.countbackStage, "CB9");
+  assert.deepEqual(bno?.tiedOpponents?.map((player) => player.name), ["Kukuh"]);
+});

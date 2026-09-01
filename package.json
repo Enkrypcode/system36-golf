@@ -1,0 +1,29 @@
+{
+  "name": "system-36-tournament-manager",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test src/lib/scoring.test.ts src/lib/course-search.test.ts src/lib/winner-engine.test.ts src/lib/tournament-storage.test.ts src/lib/real-test-fixture.test.ts src/lib/winner-export.test.ts"
+  },
+  "dependencies": {
+    "html-to-image": "^1.11.13",
+    "next": "16.0.10",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^22.10.1",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "eslint": "^9.18.0",
+    "eslint-config-next": "16.0.10",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.2"
+  }
+}
