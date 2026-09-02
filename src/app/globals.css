@@ -414,6 +414,14 @@
 .score-table .sticky-pairing,
 .score-table .pairing-cell,
 .score-table .pairing-cell input { text-align: center; }
+.score-import-input { display: none; }
+.score-import-dialog { width: min(540px, 100%); }
+.score-import-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 14px; margin-top: 14px; padding: 11px; border: 1px solid #dce6ed; border-radius: 5px; background: #f8fbfd; color: #45677f; font-size: 11px; }
+.score-import-summary span:first-child { font-weight: bold; color: #24465f; }
+.score-import-issues { display: grid; gap: 4px; max-height: 130px; overflow: auto; margin-top: 12px; padding: 10px; border: 1px solid #ead9d4; border-radius: 5px; background: #fff9f7; color: #805246; font-size: 11px; line-height: 1.35; }
+.score-import-issues b { color: #9d523f; }
+.score-import-error { margin-top: 12px !important; color: #a7503d !important; font-weight: bold; }
+@media (max-width: 570px) { .score-import-summary { grid-template-columns: 1fr; } }
 .add-player-button { padding: 7px 10px; font-size: 11px; }
 .player-add-dialog { width: min(480px, 100%); }
 .player-add-dialog > div { flex-wrap: wrap; }
