@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "System 36 Tournament Scoring",
-  description: "A score-entry workspace for golf tournament operators.",
-  icons: { icon: "/system36-favicon.png" },
+  title: "Golf Scoring System",
+  description: "Tournament scoring for golf event operators.",
+  icons: { icon: "/golf-scoring-icon.png", apple: "/apple-touch-icon.png" },
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="en"><body>{children}</body></html>;
 }
-

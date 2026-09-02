@@ -10,3 +10,9 @@ test("winner CSV uses the proper round metric and includes countback opponents",
   assert.match(csv, /"BNO","Elga Sinaga","A","165","142","72","70","10.5","CB9","Kukuh"/);
   assert.equal(exportFilename("PETRO GOLF 2026", "png"), "petro-golf-2026-winners.png");
 });
+
+test("Handicap winner CSV exports the single manual Handicap", () => {
+  const csv = winnerCsv([{ code: "BNO", label: "", winner: { ...winner, handicap: 9 } }], 2, "handicap");
+  assert.match(csv, /"Handicap"/);
+  assert.match(csv, /"BNO","Abdul Manan","A","165","141","71","70","9"/);
+});

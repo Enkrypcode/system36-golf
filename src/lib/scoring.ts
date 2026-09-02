@@ -3,9 +3,16 @@ export type Player = {
   name: string;
   /** Playing-group label for this round only; never used for tournament identity. */
   pairing?: string;
-  handicap: number;
+  /** Manually entered tournament/playing handicap, used only in Handicap mode. */
+  handicap?: number;
+  /** PSGC award category. It is independent of pairing and Handicap. */
+  awardCategory?: AwardCategory;
   scores: Array<number | null>;
 };
+
+export type ScoringSystem = "system36" | "handicap";
+export type TournamentFormat = "standard" | "psgc";
+export type AwardCategory = "A" | "B" | "C" | "SS";
 
 export const frontPar = (pars: number[]) => pars.slice(0, 9).reduce((total: number, par: number) => total + par, 0);
 export const backPar = (pars: number[]) => pars.slice(9, 18).reduce((total: number, par: number) => total + par, 0);
@@ -21,11 +28,7 @@ export function pointForScore(score: number | null, par: number) {
   return 0;
 }
 
-/**
- * Returns only the residual adjustment that Gross minus HCP 36 does not already
- * represent. Triple Bogey and worse must not be added again: their effect is
- * already contained in Gross and the zero-point HCP 36 result.
- */
+/** Returns the residual adjustment that Gross minus HCP 36 does not already represent. */
 export function nettAdjustmentForScore(score: number | null, par: number) {
   if (score === null) return 0;
   const difference = score - par;
@@ -43,4 +46,13 @@ export function scoreSummary(scores: Array<number | null>, pars: number[]) {
   const system36Handicap = 36 - points;
   const nettAdjustment = scores.reduce((total: number, score: number | null, index: number) => total + nettAdjustmentForScore(score, pars[index]), 0);
   return { front, back, gross, points, system36Handicap, nettAdjustment, nett: gross - system36Handicap + nettAdjustment };
+}
+
+/** Summary for manual tournament-handicap scoring; no System 36 points are used. */
+export function handicapScoreSummary(scores: Array<number | null>, _pars: number[], handicap: number) {
+  const sum = (slice: Array<number | null>) => slice.reduce<number>((total, value) => total + (value ?? 0), 0);
+  const front = sum(scores.slice(0, 9));
+  const back = sum(scores.slice(9, 18));
+  const gross = front + back;
+  return { front, back, gross, handicap, nett: gross - handicap };
 }
