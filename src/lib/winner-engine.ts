@@ -1,4 +1,4 @@
-import { handicapScoreSummary, scoreSummary, type Player, type ScoringSystem, type TournamentFormat } from "./scoring.ts";
+import { handicapScoreSummary, scoreSummary, type NettTieBreakMethod, type Player, type ScoringSystem, type TournamentFormat } from "./scoring.ts";
 
 export type TournamentRoundScores = { id: number; pars: number[]; players: Player[] };
 export type TournamentPlayer = {
@@ -9,7 +9,7 @@ export type TournamentPlayer = {
 export type TieBreakStage = "HCP" | "HANDICAP" | "CB9" | "CB6" | "CB3" | "CB1";
 export type Award = { code: string; label: string; winner?: TournamentPlayer; tied?: TournamentPlayer[]; tiedOpponents?: TournamentPlayer[]; countbackStage?: TieBreakStage };
 export type WinnerResult = { eligible: TournamentPlayer[]; notEligible: number; flights: Record<string, TournamentPlayer[]>; awards: Award[]; validationError?: string };
-export type WinnerOptions = { scoringSystem?: ScoringSystem; tournamentFormat?: TournamentFormat };
+export type WinnerOptions = { scoringSystem?: ScoringSystem; tournamentFormat?: TournamentFormat; nettTieBreakMethod?: NettTieBreakMethod };
 
 const keyFor = (player: Player) => player.id || player.name.trim().toLocaleLowerCase();
 const complete = (player: Player) => player.scores.length === 18 && player.scores.every((score) => Number.isInteger(score) && (score as number) >= 1);
@@ -25,15 +25,16 @@ export function countbackValues(player: TournamentPlayer, nett: boolean) {
   return grossValues.map((value, index) => value - (handicap * [9, 6, 3, 1][index]) / 18);
 }
 
-function selectAward(code: string, label: string, candidates: TournamentPlayer[], metric: "aggregateGross" | "aggregateNett", scoringSystem: ScoringSystem): Award {
+function selectAward(code: string, label: string, candidates: TournamentPlayer[], metric: "aggregateGross" | "aggregateNett", scoringSystem: ScoringSystem, nettTieBreakMethod: NettTieBreakMethod): Award {
   if (!candidates.length) return { code, label };
   const lowest = Math.min(...candidates.map((candidate) => candidate[metric]));
   const metricTies = candidates.filter((candidate) => candidate[metric] === lowest);
   const nett = metric === "aggregateNett";
   const handicapForTie = (candidate: TournamentPlayer) => scoringSystem === "handicap" ? candidate.handicap ?? 0 : candidate.averageHcp36;
   const tieStage: TieBreakStage = scoringSystem === "handicap" ? "HANDICAP" : "HCP";
-  const hcpTies = nett ? metricTies.filter((candidate) => handicapForTie(candidate) === Math.min(...metricTies.map(handicapForTie))) : metricTies;
-  if (nett && hcpTies.length === 1) return { code, label, winner: hcpTies[0], countbackStage: tieStage, tiedOpponents: metricTies.filter((candidate) => candidate.key !== hcpTies[0].key) };
+  const usesHandicapBeforeCountback = nett && (scoringSystem !== "handicap" || nettTieBreakMethod === "lower-handicap");
+  const hcpTies = usesHandicapBeforeCountback ? metricTies.filter((candidate) => handicapForTie(candidate) === Math.min(...metricTies.map(handicapForTie))) : metricTies;
+  if (usesHandicapBeforeCountback && hcpTies.length === 1) return { code, label, winner: hcpTies[0], countbackStage: tieStage, tiedOpponents: metricTies.filter((candidate) => candidate.key !== hcpTies[0].key) };
   const sorted = [...hcpTies].sort((a, b) => {
     const aCountback = countbackValues(a, nett); const bCountback = countbackValues(b, nett);
     for (let index = 0; index < aCountback.length; index++) if (aCountback[index] !== bCountback[index]) return aCountback[index] - bCountback[index];
@@ -49,6 +50,7 @@ function selectAward(code: string, label: string, candidates: TournamentPlayer[]
 export function calculateTournamentWinners(rounds: TournamentRoundScores[], flightCount: number, flightLimits: number[] = [], options: WinnerOptions = {}): WinnerResult {
   const scoringSystem = options.scoringSystem ?? "system36";
   const tournamentFormat = scoringSystem === "handicap" && options.tournamentFormat === "psgc" ? "psgc" : "standard";
+  const nettTieBreakMethod = options.nettTieBreakMethod ?? (scoringSystem === "handicap" && tournamentFormat === "psgc" ? "lower-handicap" : "countback");
   if (!rounds.length) return { eligible: [], notEligible: 0, flights: {}, awards: [] };
   const entries = new Map<string, Map<number, Player>>();
   for (const round of rounds) for (const player of round.players) {
@@ -85,7 +87,7 @@ export function calculateTournamentWinners(rounds: TournamentRoundScores[], flig
   const available = (players: TournamentPlayer[]) => players.filter((player) => !awardedPlayerKeys.has(player.key));
   const awards: Award[] = [];
   const addAward = (code: string, label: string, candidates: TournamentPlayer[], metric: "aggregateGross" | "aggregateNett") => {
-    const award = selectAward(code, label, candidates, metric, scoringSystem); awards.push(award); if (award.winner) awardedPlayerKeys.add(award.winner.key);
+    const award = selectAward(code, label, candidates, metric, scoringSystem, nettTieBreakMethod); awards.push(award); if (award.winner) awardedPlayerKeys.add(award.winner.key);
   };
   addAward("BGO", "Best Gross Overall", available(eligible), "aggregateGross");
   addAward("BNO", "Best Nett Overall", available(eligible), "aggregateNett");

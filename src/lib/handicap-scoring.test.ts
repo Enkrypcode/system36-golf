@@ -31,13 +31,12 @@ test("Handicap nett awards use lower Handicap before countback", () => {
     player("Gross champion", 70, 0),
     player("Lower handicap", 82, 9),
     player("Higher handicap", 85, 12),
-  ])], 1, [], { scoringSystem: "handicap" });
+  ])], 1, [], { scoringSystem: "handicap", nettTieBreakMethod: "lower-handicap" });
   const nett = result.awards.find((award) => award.code === "BNO");
   assert.equal(nett?.winner?.name, "Lower handicap");
   assert.equal(nett?.countbackStage, "HANDICAP");
   assert.deepEqual(nett?.tiedOpponents?.map((candidate) => candidate.name), ["Higher handicap"]);
 });
-
 test("equal Handicap nett uses CB9 while gross awards ignore Handicap", () => {
   const a = { ...player("A", 72, 9), scores: [5, ...Array(8).fill(4), 3, ...Array(8).fill(4)] };
   const b = { ...player("B", 72, 9), scores: [3, ...Array(8).fill(4), 5, ...Array(8).fill(4)] };
@@ -54,4 +53,13 @@ test("Handicap flight assignment uses the manual Handicap", () => {
   assert.deepEqual(result.flights.A.map((candidate) => candidate.name), ["A"]);
   assert.deepEqual(result.flights.B.map((candidate) => candidate.name), ["B"]);
   assert.deepEqual(result.flights.C.map((candidate) => candidate.name), ["C"]);
+});
+test("Handicap Countback mode skips lower Handicap and resolves Nett ties by CB9", () => {
+  const lowerHandicap = player("Lower handicap", 73, 9);
+  const higherHandicap = player("Higher handicap", 76, 12);
+  const result = calculateTournamentWinners([round(1, [player("Gross champion", 70, 0), lowerHandicap, higherHandicap])], 1, [], { scoringSystem: "handicap", nettTieBreakMethod: "countback" });
+  const nett = result.awards.find((award) => award.code === "BNO");
+  assert.equal(nett?.winner?.name, "Higher handicap");
+  assert.equal(nett?.countbackStage, "CB9");
+  assert.deepEqual(nett?.tiedOpponents?.map((candidate) => candidate.name), ["Lower handicap"]);
 });

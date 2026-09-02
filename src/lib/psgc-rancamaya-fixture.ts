@@ -2,7 +2,7 @@ import source from "../data/psgc-rancamaya-data.json" with { type: "json" };
 import type { ScoringCourse } from "./course-catalog.ts";
 import type { AwardCategory, Player } from "./scoring.ts";
 
-export type PsgcFixtureParticipant = { id: number; name: string; handicap: number; awardCategory: AwardCategory };
+export type PsgcFixtureParticipant = { id: number; name: string; handicap: number; awardCategory: AwardCategory; scores: number[] };
 type PsgcPairingSource = { teeBox: number; flight: number; name: string };
 type PsgcFixtureSource = { tournamentName: string; eventDate: string; participants: PsgcFixtureParticipant[]; pairings: PsgcPairingSource[] };
 export type LoadedPsgcFixture = {
@@ -11,7 +11,7 @@ export type LoadedPsgcFixture = {
 };
 
 export const PSGC_FIXTURE_NAME = "Gobar PSGC — Rancamaya";
-export const PSGC_SOURCE_NOTE = "Source note: TATO K. SUDARTO is retained as Super Senior from the master participant list; the dedicated Super Senior sheet lists only seven named rows.";
+export const PSGC_SOURCE_NOTE = "Source note: PSGC Load Data uses the authoritative 60-player roster and explicit Flight categories.";
 
 const normalize = (value: string) => value.toLocaleUpperCase().replace(/[^A-Z0-9]/g, "");
 const pairingAliases: Record<string, string> = {
@@ -30,7 +30,7 @@ const pairingAliases: Record<string, string> = {
 export function loadPsgcRancamayaFixture(courses: ScoringCourse[]): LoadedPsgcFixture | null {
   const fixture = source as PsgcFixtureSource;
   const course = courses.find((candidate) => normalize(candidate.name) === "RANCAMAYA");
-  if (!course?.pars || fixture.participants.length !== 63) return null;
+  if (!course?.pars || fixture.participants.length !== 60 || fixture.participants.some((participant) => participant.scores.length !== 18 || participant.scores.some((score) => !Number.isInteger(score) || score <= 0))) return null;
   const byCanonicalName = new Map(fixture.participants.map((participant) => [normalize(participant.name), participant]));
   const pairingByParticipantId = new Map<number, string>();
   const unmatchedPairingNames: string[] = [];
@@ -48,7 +48,7 @@ export function loadPsgcRancamayaFixture(courses: ScoringCourse[]): LoadedPsgcFi
       handicap: participant.handicap,
       awardCategory: participant.awardCategory,
       pairing: pairingByParticipantId.get(participant.id) ?? "",
-      scores: Array(18).fill(null),
+      scores: [...participant.scores],
     })),
   };
   return {

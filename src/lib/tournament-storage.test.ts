@@ -13,6 +13,7 @@ const saved: SavedTournament = {
   flightLimits: [12],
   scoringSystem: "handicap",
   tournamentFormat: "psgc",
+  nettTieBreakMethod: "lower-handicap",
 };
 
 test("saved tournament state round-trips without derived scoring data", () => {
@@ -31,4 +32,13 @@ test("older saved tournaments restore as System 36", () => {
   delete older.tournamentFormat;
   const restored = parseSavedTournament(JSON.stringify(older));
   assert.equal(restored?.scoringSystem, "system36");
+});
+
+test("saved Handicap tie-break methods round-trip and older tournaments receive format defaults", () => {
+  assert.equal(parseSavedTournament(serializeTournament({ ...saved, nettTieBreakMethod: "countback" }))?.nettTieBreakMethod, "countback");
+  const olderPsgc = { ...saved } as Record<string, unknown>;
+  delete olderPsgc.nettTieBreakMethod;
+  assert.equal(parseSavedTournament(JSON.stringify(olderPsgc))?.nettTieBreakMethod, "lower-handicap");
+  const olderStandard = { ...olderPsgc, tournamentFormat: "standard" };
+  assert.equal(parseSavedTournament(JSON.stringify(olderStandard))?.nettTieBreakMethod, "countback");
 });
