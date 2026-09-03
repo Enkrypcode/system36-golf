@@ -7,7 +7,7 @@ export type SavedTournamentRound = { id: number; courseId: number | null; player
 export type SavedTournament = {
   version: 1; step: 1 | 2 | 3; name: string; roundCount: number; rounds: SavedTournamentRound[];
   tournamentScores: Record<number, Player[]>; flights: number; flightLimits: number[];
-  scoringSystem?: ScoringSystem; tournamentFormat?: TournamentFormat; nettTieBreakMethod?: NettTieBreakMethod; novelties?: NoveltyEntry[];
+  scoringSystem?: ScoringSystem; tournamentFormat?: TournamentFormat; nettTieBreakMethod?: NettTieBreakMethod; system36NettTieBreakMethod?: NettTieBreakMethod; handicapNettTieBreakMethod?: NettTieBreakMethod; novelties?: NoveltyEntry[];
 };
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -31,9 +31,15 @@ export function parseSavedTournament(raw: string | null): SavedTournament | null
       || !isObject(value.tournamentScores) || (value.novelties !== undefined && (!Array.isArray(value.novelties) || !value.novelties.every(isNoveltyEntry)))) return null;
     const scoringSystem: ScoringSystem = value.scoringSystem === "handicap" ? "handicap" : "system36";
     const tournamentFormat: TournamentFormat = scoringSystem === "handicap" && value.tournamentFormat === "psgc" ? "psgc" : "standard";
-    const nettTieBreakMethod: NettTieBreakMethod = value.nettTieBreakMethod === "lower-handicap" || value.nettTieBreakMethod === "countback"
-      ? value.nettTieBreakMethod
-      : scoringSystem === "handicap" && tournamentFormat === "psgc" ? "lower-handicap" : "countback";
+    const validNettTieBreakMethod = (method: unknown): method is NettTieBreakMethod => method === "lower-handicap" || method === "countback";
+    const legacyNettTieBreakMethod = validNettTieBreakMethod(value.nettTieBreakMethod) ? value.nettTieBreakMethod : undefined;
+    const system36NettTieBreakMethod: NettTieBreakMethod = validNettTieBreakMethod(value.system36NettTieBreakMethod)
+      ? value.system36NettTieBreakMethod
+      : "lower-handicap";
+    const handicapNettTieBreakMethod: NettTieBreakMethod = validNettTieBreakMethod(value.handicapNettTieBreakMethod)
+      ? value.handicapNettTieBreakMethod
+      : scoringSystem === "handicap" && legacyNettTieBreakMethod ? legacyNettTieBreakMethod : tournamentFormat === "psgc" ? "lower-handicap" : "countback";
+    const nettTieBreakMethod = scoringSystem === "system36" ? system36NettTieBreakMethod : handicapNettTieBreakMethod;
     const rounds = value.rounds as unknown[]; const ids = new Set<number>();
     if (!rounds.every((round) => isObject(round) && Number.isInteger(round.id) && (round.id as number) > 0 && !ids.has(round.id as number) && (ids.add(round.id as number), true)
       && (round.courseId === null || (Number.isInteger(round.courseId) && (round.courseId as number) > 0))
@@ -45,7 +51,7 @@ export function parseSavedTournament(raw: string | null): SavedTournament | null
       tournamentScores[id] = players.map((player) => {        return { id: player.id, name: player.name, pairing: player.pairing?.trim().toLocaleUpperCase(), ...(player.handicap === undefined ? {} : { handicap: player.handicap }), ...(player.awardCategory === undefined ? {} : { awardCategory: player.awardCategory }), scores: player.scores };
       });
     }
-    return { version: 1, step: value.step as 1 | 2 | 3, name: value.name, roundCount: value.roundCount as number, rounds: rounds as SavedTournamentRound[], tournamentScores, flights: value.flights as number, flightLimits: value.flightLimits as number[], scoringSystem, tournamentFormat, nettTieBreakMethod, ...(value.novelties === undefined ? {} : { novelties: value.novelties as NoveltyEntry[] }) };
+    return { version: 1, step: value.step as 1 | 2 | 3, name: value.name, roundCount: value.roundCount as number, rounds: rounds as SavedTournamentRound[], tournamentScores, flights: value.flights as number, flightLimits: value.flightLimits as number[], scoringSystem, tournamentFormat, nettTieBreakMethod, system36NettTieBreakMethod, handicapNettTieBreakMethod, ...(value.novelties === undefined ? {} : { novelties: value.novelties as NoveltyEntry[] }) };
   } catch { return null; }
 }
 export const serializeTournament = (tournament: SavedTournament) => JSON.stringify(tournament);

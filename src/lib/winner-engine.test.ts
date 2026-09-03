@@ -119,3 +119,42 @@ test("countback notes expose the opponent list only when a countback resolves a 
   const noTie = calculateTournamentWinners([round(1, [player("Clear winner", scoresWith({ 1: 3 })), player("Other")])], 1);
   assert.equal(noTie.awards.find((item) => item.code === "BGO")?.countbackStage, undefined);
 });
+
+const system36TiePlayer = (name: string, bogeyHoles: number[]) => player(name, scoresWith(Object.fromEntries(bogeyHoles.map((hole) => [hole, 5]))));
+const system36NettAward = (players: ReturnType<typeof player>[], method: "lower-handicap" | "countback") => calculateTournamentWinners([round(1, [player("Gross champion"), ...players])], 1, [], { scoringSystem: "system36", nettTieBreakMethod: method }).awards.find((award) => award.code === "BNO");
+
+test("System 36 Nett ties use the selected Tournament HCP36 or Countback method", () => {
+  const lowerHcp = system36TiePlayer("Lower HCP36", [10]);
+  const higherHcp = system36TiePlayer("Higher HCP36", [1, 2]);
+  const lowerHcpResult = system36NettAward([lowerHcp, higherHcp], "lower-handicap");
+  assert.equal(lowerHcpResult?.winner?.name, "Lower HCP36");
+  assert.equal(lowerHcpResult?.countbackStage, "HCP");
+
+  const sameHcpBackNineWorse = system36TiePlayer("Back nine worse", [10]);
+  const sameHcpBackNineBetter = system36TiePlayer("Back nine better", [1]);
+  const cb9Result = system36NettAward([sameHcpBackNineWorse, sameHcpBackNineBetter], "lower-handicap");
+  assert.equal(cb9Result?.winner?.name, "Back nine better");
+  assert.equal(cb9Result?.countbackStage, "CB9");
+
+  const countbackResult = system36NettAward([lowerHcp, higherHcp], "countback");
+  assert.equal(countbackResult?.winner?.name, "Higher HCP36");
+  assert.equal(countbackResult?.countbackStage, "CB9");
+});
+
+test("System 36 Nett countback progresses through CB6, CB3, CB1, then Manual Decision", () => {
+  const cb6 = system36NettAward([system36TiePlayer("CB6 better", [1, 10]), system36TiePlayer("CB6 worse", [1, 13])], "lower-handicap");
+  assert.equal(cb6?.winner?.name, "CB6 better");
+  assert.equal(cb6?.countbackStage, "CB6");
+
+  const cb3 = system36NettAward([system36TiePlayer("CB3 better", [1, 15]), system36TiePlayer("CB3 worse", [1, 16])], "lower-handicap");
+  assert.equal(cb3?.winner?.name, "CB3 better");
+  assert.equal(cb3?.countbackStage, "CB3");
+
+  const cb1 = system36NettAward([system36TiePlayer("CB1 better", [1, 17]), system36TiePlayer("CB1 worse", [1, 18])], "lower-handicap");
+  assert.equal(cb1?.winner?.name, "CB1 better");
+  assert.equal(cb1?.countbackStage, "CB1");
+
+  const unresolved = system36NettAward([system36TiePlayer("Tie A", [1]), system36TiePlayer("Tie B", [1])], "countback");
+  assert.equal(unresolved?.winner, undefined);
+  assert.deepEqual(unresolved?.tied?.map((player) => player.name), ["Tie A", "Tie B"]);
+});
