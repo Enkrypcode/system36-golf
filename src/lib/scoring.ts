@@ -7,11 +7,14 @@ export type Player = {
   handicap?: number;
   /** PSGC award category. It is independent of pairing and Handicap. */
   awardCategory?: AwardCategory;
+  /** Optional blind-hole targets; used only by the Jackpot side competition. */
+  jackpotTargetFront?: number;
+  jackpotTargetBack?: number;
   scores: Array<number | null>;
 };
 
 export type ScoringSystem = "system36" | "handicap";
-export type TournamentFormat = "standard" | "psgc";
+export type TournamentFormat = "standard" | "psgc" | "split9";
 export type NettTieBreakMethod = "lower-handicap" | "countback";
 export type AwardCategory = "A" | "B" | "C" | "SS";
 

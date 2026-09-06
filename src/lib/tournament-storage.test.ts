@@ -8,7 +8,7 @@ const saved: SavedTournament = {
   name: "PETRO GOLF",
   roundCount: 1,
   rounds: [{ id: 1, courseId: 10, players: 1 }],
-  tournamentScores: { 1: [{ id: "player-1", name: "Imam Tajudi", pairing: "1A", handicap: 9, awardCategory: "A", scores: Array(18).fill(4) }] },
+  tournamentScores: { 1: [{ id: "player-1", name: "Imam Tajudi", pairing: "1A", handicap: 9, awardCategory: "A", jackpotTargetFront: 36, jackpotTargetBack: 37, scores: Array(18).fill(4) }] },
   flights: 2,
   flightLimits: [12],
   scoringSystem: "handicap",
@@ -16,6 +16,7 @@ const saved: SavedTournament = {
   nettTieBreakMethod: "lower-handicap",
   system36NettTieBreakMethod: "lower-handicap",
   handicapNettTieBreakMethod: "lower-handicap",
+  jackpot: { enabled: true, blindHoles: [3, 5, 13, 17], locked: true, revealed: false },
 };
 
 test("saved tournament state round-trips without derived scoring data", () => {
@@ -49,4 +50,18 @@ test("saved scoring-system tie-break methods round-trip independently and older 
   assert.equal(parseSavedTournament(JSON.stringify(olderStandard))?.nettTieBreakMethod, "countback");
   const olderSystem36 = { ...olderPsgc, scoringSystem: "system36", nettTieBreakMethod: "countback" };
   assert.equal(parseSavedTournament(JSON.stringify(olderSystem36))?.nettTieBreakMethod, "lower-handicap");
+});
+test("Jackpot settings and targets persist, while older tournaments default to Jackpot off", () => {
+  const restored = parseSavedTournament(serializeTournament(saved));
+  assert.deepEqual(restored?.jackpot, saved.jackpot);
+  assert.equal(restored?.tournamentScores[1][0].jackpotTargetFront, 36);
+  const older = { ...saved } as Record<string, unknown>;
+  delete older.jackpot;
+  assert.deepEqual(parseSavedTournament(JSON.stringify(older))?.jackpot, { enabled: false, blindHoles: [], locked: false, revealed: false });
+});
+test("Split 9-Hole format persists as a Handicap tournament format", () => {
+  const splitNine = { ...saved, tournamentFormat: "split9" as const, handicapNettTieBreakMethod: "countback" as const };
+  const restored = parseSavedTournament(serializeTournament(splitNine));
+  assert.equal(restored?.tournamentFormat, "split9");
+  assert.equal(restored?.scoringSystem, "handicap");
 });

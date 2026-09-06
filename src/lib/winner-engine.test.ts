@@ -158,3 +158,40 @@ test("System 36 Nett countback progresses through CB6, CB3, CB1, then Manual Dec
   assert.equal(unresolved?.winner, undefined);
   assert.deepEqual(unresolved?.tied?.map((player) => player.name), ["Tie A", "Tie B"]);
 });
+const splitNineScores = (front: number, back: number) => {
+  const values = Array(18).fill(4);
+  values[8] += front - 36;
+  values[17] += back - 36;
+  return values;
+};
+
+const handicapPlayer = (id: string, handicap: number, front: number, back: number) => ({ id, name: id, handicap, scores: splitNineScores(front, back) });
+
+test("Split 9-Hole awards use half Handicap and prevent a sole first-nine champion from winning again", () => {
+  const result = calculateTournamentWinners([round(1, [
+    handicapPlayer("First Champion", 20, 44, 44),
+    handicapPlayer("Second Champion", 16, 45, 41),
+    handicapPlayer("Third", 9, 45, 43),
+  ])], 2, [18], { scoringSystem: "handicap", tournamentFormat: "split9" });
+  assert.equal(result.awards.length, 0, "Split 9-Hole must not create normal Handicap awards");
+  assert.equal(result.flights.A, undefined, "Split 9-Hole must not create flight pools");
+  assert.equal(result.splitNine?.firstChampion?.name, "First Champion");
+  assert.equal(result.splitNine?.firstChampion?.halfHandicap, 10);
+  assert.equal(result.splitNine?.firstChampion?.frontNett, 34);
+  assert.equal(result.splitNine?.secondChampion?.name, "Second Champion");
+  assert.equal(result.splitNine?.secondChampion?.backNett, 33);
+  assert.ok(result.splitNine?.leaderboard.some((player) => player.name === "First Champion"), "the first-nine champion remains visible in the back-nine leaderboard");
+});
+
+test("Split 9-Hole retains decimal half Handicaps and leaves nine-hole ties for manual decisions", () => {
+  const result = calculateTournamentWinners([round(1, [
+    handicapPlayer("Tied A", 9, 41, 43),
+    handicapPlayer("Tied B", 15, 44, 42),
+    handicapPlayer("Back Winner", 12, 46, 39),
+  ])], 1, [], { scoringSystem: "handicap", tournamentFormat: "split9" });
+  assert.equal(result.splitNine?.leaderboard.find((player) => player.name === "Tied A")?.halfHandicap, 4.5);
+  assert.equal(result.splitNine?.leaderboard.find((player) => player.name === "Tied A")?.frontNett, 36.5);
+  assert.equal(result.splitNine?.firstChampion, undefined, "equal first-nine Nett scores must not use a hidden tie-break");
+  assert.deepEqual(result.splitNine?.firstTied?.map((player) => player.name), ["Tied A", "Tied B"]);
+  assert.equal(result.splitNine?.secondChampion?.name, "Back Winner", "no player is excluded from the second-nine award while the first-nine result is tied");
+});
