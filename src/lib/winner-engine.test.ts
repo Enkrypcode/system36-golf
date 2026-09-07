@@ -186,7 +186,7 @@ test("Split 9-Hole awards use half Handicap and prevent a sole first-nine champi
 test("Split 9-Hole retains decimal half Handicaps and leaves nine-hole ties for manual decisions", () => {
   const result = calculateTournamentWinners([round(1, [
     handicapPlayer("Tied A", 9, 41, 43),
-    handicapPlayer("Tied B", 15, 44, 42),
+    handicapPlayer("Tied B", 9, 41, 43),
     handicapPlayer("Back Winner", 12, 46, 39),
   ])], 1, [], { scoringSystem: "handicap", tournamentFormat: "split9" });
   assert.equal(result.splitNine?.leaderboard.find((player) => player.name === "Tied A")?.halfHandicap, 4.5);
