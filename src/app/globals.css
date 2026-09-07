@@ -481,3 +481,10 @@
 .split-nine-export th:nth-child(6){font-size:10px}
 /* Center every Split 9 export row consistently, including multi-line names. */
 .split-nine-export tbody td{vertical-align:middle}
+/* Use a shared flex wrapper so each export value centers inside its table row. */
+.split-nine-export tbody td{padding:0}
+.split-nine-export-cell{display:flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:38px;height:100%;padding:11px 6px}
+.split-nine-export-player{justify-content:flex-start;padding-left:8px;padding-right:8px}
+.split-nine-export td:nth-child(6) .split-nine-export-cell{padding-left:12px;padding-right:12px}
+/* Override the legacy player-name span rule for the export’s centering wrapper. */
+.split-nine-export td:nth-child(2) .split-nine-export-cell{display:flex;margin-top:0}
