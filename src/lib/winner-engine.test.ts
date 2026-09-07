@@ -166,32 +166,54 @@ const splitNineScores = (front: number, back: number) => {
 };
 
 const handicapPlayer = (id: string, handicap: number, front: number, back: number) => ({ id, name: id, handicap, scores: splitNineScores(front, back) });
+const rawScores = (changes: Record<number, number>) => Array.from({ length: 18 }, (_, index) => changes[index + 1] ?? 4);
+const rawPlayer = (name: string, scores: number[], handicap = 0) => ({ id: name, name, handicap, scores });
 
-test("Split 9-Hole awards use half Handicap and prevent a sole first-nine champion from winning again", () => {
+test("Split 9-Hole assigns BGO, BNO, then both nines with a strict one-award-per-player cascade", () => {
   const result = calculateTournamentWinners([round(1, [
-    handicapPlayer("First Champion", 20, 44, 44),
-    handicapPlayer("Second Champion", 16, 45, 41),
-    handicapPlayer("Third", 9, 45, 43),
-  ])], 2, [18], { scoringSystem: "handicap", tournamentFormat: "split9" });
+    handicapPlayer("BGO", 10, 35, 35),
+    handicapPlayer("BNO", 30, 40, 37),
+    handicapPlayer("First Champion", 20, 40, 50),
+    handicapPlayer("First Runner 1", 20, 41, 50),
+    handicapPlayer("First Runner 2", 20, 42, 50),
+    handicapPlayer("Second Champion", 20, 60, 40),
+    handicapPlayer("Second Runner 1", 20, 60, 41),
+    handicapPlayer("Second Runner 2", 20, 60, 42),
+  ])], 1, [], { scoringSystem: "handicap", tournamentFormat: "split9" });
+  const split = result.splitNine!;
   assert.equal(result.awards.length, 0, "Split 9-Hole must not create normal Handicap awards");
-  assert.equal(result.flights.A, undefined, "Split 9-Hole must not create flight pools");
-  assert.equal(result.splitNine?.firstChampion?.name, "First Champion");
-  assert.equal(result.splitNine?.firstChampion?.halfHandicap, 10);
-  assert.equal(result.splitNine?.firstChampion?.frontNett, 34);
-  assert.equal(result.splitNine?.secondChampion?.name, "Second Champion");
-  assert.equal(result.splitNine?.secondChampion?.backNett, 33);
-  assert.ok(result.splitNine?.leaderboard.some((player) => player.name === "First Champion"), "the first-nine champion remains visible in the back-nine leaderboard");
+  assert.equal(split.overallAwards.find((award) => award.code === "BGO")?.winner?.name, "BGO");
+  assert.equal(split.overallAwards.find((award) => award.code === "BNO")?.winner?.name, "BNO", "BGO is excluded from BNO");
+  assert.equal(split.firstAwards["First Champion"], "Champion");
+  assert.equal(split.firstAwards["First Runner 1"], "Runner Up 1");
+  assert.equal(split.firstAwards["First Runner 2"], "Runner Up 2");
+  assert.equal(split.secondAwards["Second Champion"], "Champion");
+  assert.equal(split.secondAwards["Second Runner 1"], "Runner Up 1");
+  assert.equal(split.secondAwards["Second Runner 2"], "Runner Up 2");
+  assert.equal(split.firstAwards.BGO, undefined, "Overall winners are excluded from the 1st Nine");
+  assert.equal(split.firstAwards.BNO, undefined, "Overall winners are excluded from the 1st Nine");
+  assert.equal(split.secondAwards["First Champion"], undefined, "1st Nine winners are excluded from the 2nd Nine");
+  const allWinners = [...split.overallAwards.flatMap((award) => award.winner ? [award.winner.key] : []), ...Object.keys(split.firstAwards), ...Object.keys(split.secondAwards)];
+  assert.equal(new Set(allWinners).size, allWinners.length, "one player may receive only one Split 9-Hole award");
 });
 
-test("Split 9-Hole retains decimal half Handicaps and leaves nine-hole ties for manual decisions", () => {
+test("Split 9-Hole keeps tied Nett ranks while countback decides the eligible award order", () => {
   const result = calculateTournamentWinners([round(1, [
-    handicapPlayer("Tied A", 9, 41, 43),
-    handicapPlayer("Tied B", 9, 41, 43),
-    handicapPlayer("Back Winner", 12, 46, 39),
+    rawPlayer("BGO", rawScores({})),
+    rawPlayer("BNO", rawScores({ 1: 5, 10: 5 }), 20),
+    rawPlayer("Front CB6", rawScores({ 1: 6 })),
+    rawPlayer("Front Other", rawScores({ 4: 6 })),
+    rawPlayer("Front Runner 2", rawScores({ 1: 7 })),
+    rawPlayer("Back Champion", rawScores({ 1: 10, 10: 7 })),
+    rawPlayer("Back Runner 1", rawScores({ 1: 10, 10: 8 })),
+    rawPlayer("Back Runner 2", rawScores({ 1: 10, 10: 9 })),
   ])], 1, [], { scoringSystem: "handicap", tournamentFormat: "split9" });
-  assert.equal(result.splitNine?.leaderboard.find((player) => player.name === "Tied A")?.halfHandicap, 4.5);
-  assert.equal(result.splitNine?.leaderboard.find((player) => player.name === "Tied A")?.frontNett, 36.5);
-  assert.equal(result.splitNine?.firstChampion, undefined, "equal first-nine Nett scores must not use a hidden tie-break");
-  assert.deepEqual(result.splitNine?.firstTied?.map((player) => player.name), ["Tied A", "Tied B"]);
-  assert.equal(result.splitNine?.secondChampion?.name, "Back Winner", "no player is excluded from the second-nine award while the first-nine result is tied");
+  const split = result.splitNine!;
+  const firstTieA = split.leaderboard.find((player) => player.name === "Front CB6")!;
+  const firstTieB = split.leaderboard.find((player) => player.name === "Front Other")!;
+  assert.equal(firstTieA.frontRank, firstTieB.frontRank, "raw equal Nett scores remain visibly tied");
+  assert.equal(split.firstAwards["Front CB6"], "Champion");
+  assert.equal(split.firstAwardCountbacks["Front CB6"], "CB6");
+  assert.equal(split.firstAwards["Front Other"], "Runner Up 1", "the next tied player cascades to Runner Up 1");
+  assert.equal(split.secondAwards["Front CB6"], undefined, "a 1st Nine award winner cannot receive a 2nd Nine award");
 });

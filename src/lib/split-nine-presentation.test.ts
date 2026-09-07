@@ -12,56 +12,38 @@ const scores = (front: number, back: number) => {
 };
 const player = (name: string, handicap: number, front: number, back: number) => ({ id: name, name, handicap, scores: scores(front, back) });
 
-test("Split 9-Hole labels Champion and two runners up while export rows omit internal notes", () => {
+test("Split 9-Hole labels the six nine-hole awards while app-only notes explain overall exclusions", () => {
   const result = calculateTournamentWinners([{ id: 1, pars, players: [
-    player("Eddy Fritz", 20, 44, 42),
-    player("Suyitno", 16, 45, 41),
-    player("Rusman", 14, 46, 42),
-    player("Player Four", 12, 47, 42),
+    player("BGO", 10, 35, 35), player("BNO", 30, 40, 37),
+    player("First Champion", 20, 40, 50), player("First Runner 1", 20, 41, 50), player("First Runner 2", 20, 42, 50),
+    player("Second Champion", 20, 60, 40), player("Second Runner 1", 20, 60, 41), player("Second Runner 2", 20, 60, 42),
   ] }], 1, [], { scoringSystem: "handicap", tournamentFormat: "split9" });
   const internalFront = splitNineLeaderboardRows(result.splitNine, "front", "app");
   const internalBack = splitNineLeaderboardRows(result.splitNine, "back", "app");
-  assert.equal(internalFront.find((row) => row.player.name === "Eddy Fritz")?.award, "Champion");
-  assert.equal(internalFront.find((row) => row.player.name === "Suyitno")?.award, "Runner Up 1");
-  assert.equal(internalFront.find((row) => row.player.name === "Rusman")?.award, "Runner Up 2");
-  assert.equal(internalBack.find((row) => row.player.name === "Suyitno")?.award, "Champion");
-  assert.equal(internalBack.find((row) => row.player.name === "Rusman")?.award, "Runner Up 1");
-  assert.equal(internalBack.find((row) => row.player.name === "Player Four")?.award, "Runner Up 2");
-  assert.equal(internalBack.find((row) => row.player.name === "Eddy Fritz")?.notes.includes("Already won 1st Nine"), true);
-  assert.equal(internalFront.find((row) => row.player.name === "Suyitno")?.notes.includes("Won 2nd Nine"), true);
+  assert.equal(internalFront.find((row) => row.player.name === "First Champion")?.award, "Champion");
+  assert.equal(internalFront.find((row) => row.player.name === "First Runner 1")?.award, "Runner Up 1");
+  assert.equal(internalFront.find((row) => row.player.name === "First Runner 2")?.award, "Runner Up 2");
+  assert.equal(internalBack.find((row) => row.player.name === "Second Champion")?.award, "Champion");
+  assert.equal(internalBack.find((row) => row.player.name === "Second Runner 1")?.award, "Runner Up 1");
+  assert.equal(internalBack.find((row) => row.player.name === "Second Runner 2")?.award, "Runner Up 2");
+  assert.equal(internalFront.find((row) => row.player.name === "BGO")?.notes.includes("Already won BGO"), true);
+  assert.equal(internalBack.find((row) => row.player.name === "First Champion")?.notes.includes("Already won 1st Nine"), true);
   const exportedBack = splitNineLeaderboardRows(result.splitNine, "back", "export");
-  assert.ok(exportedBack.some((row) => row.player.name === "Eddy Fritz"), "the full raw leaderboard remains in the image");
-  assert.deepEqual(exportedBack.find((row) => row.player.name === "Eddy Fritz")?.notes, [], "the image hides internal eligibility notes");
+  assert.deepEqual(exportedBack.find((row) => row.player.name === "First Champion")?.notes, [], "the image hides internal eligibility notes");
 });
-
-const rawPlayer = (name: string, scores: number[]) => ({ id: name, name, handicap: 0, scores });
+const rawPlayer = (name: string, scores: number[], handicap = 0) => ({ id: name, name, handicap, scores });
 const rawScores = (changes: Record<number, number>) => Array.from({ length: 18 }, (_, index) => changes[index + 1] ?? 4);
 
-test("Split 9-Hole preserves tied Nett ranks while CB6, CB3, and CB1 decide award recipients", () => {
-  const frontCb6 = calculateTournamentWinners([{ id: 1, pars, players: [
-    rawPlayer("Front CB6", rawScores({ 1: 6 })),
-    rawPlayer("Front Other", rawScores({ 4: 6 })),
-    rawPlayer("Front Third", rawScores({ 1: 7 })),
+test("Split 9-Hole preserves raw tied ranks while countback decides an eligible award recipient", () => {
+  const result = calculateTournamentWinners([{ id: 1, pars, players: [
+    rawPlayer("BGO", rawScores({})), rawPlayer("BNO", rawScores({ 1: 5, 10: 5 }), 20),
+    rawPlayer("Front CB6", rawScores({ 1: 6 })), rawPlayer("Front Other", rawScores({ 4: 6 })), rawPlayer("Front Runner 2", rawScores({ 1: 7 })),
+    rawPlayer("Back Champion", rawScores({ 1: 10, 10: 7 })), rawPlayer("Back Runner 1", rawScores({ 1: 10, 10: 8 })), rawPlayer("Back Runner 2", rawScores({ 1: 10, 10: 9 })),
   ] }], 1, [], { scoringSystem: "handicap", tournamentFormat: "split9" });
-  const frontRows = splitNineLeaderboardRows(frontCb6.splitNine, "front", "app");
-  assert.equal(frontRows.find((row) => row.player.name === "Front CB6")?.rank, 1);
-  assert.equal(frontRows.find((row) => row.player.name === "Front Other")?.rank, 1, "raw equal Nett scores remain tied in the leaderboard");
-  assert.equal(frontCb6.splitNine?.firstChampion?.name, "Front CB6");
-  assert.equal(frontCb6.splitNine?.firstAwardCountbacks["Front CB6"], "CB6");
-
-  const backCb3 = calculateTournamentWinners([{ id: 1, pars, players: [
-    rawPlayer("Back CB3", rawScores({ 13: 6 })),
-    rawPlayer("Back Other", rawScores({ 16: 6 })),
-    rawPlayer("Back Third", rawScores({ 10: 7 })),
-  ] }], 1, [], { scoringSystem: "handicap", tournamentFormat: "split9" });
-  assert.equal(backCb3.splitNine?.secondChampion?.name, "Back CB3");
-  assert.equal(backCb3.splitNine?.secondAwardCountbacks["Back CB3"], "CB3");
-
-  const backCb1 = calculateTournamentWinners([{ id: 1, pars, players: [
-    rawPlayer("Back CB1", rawScores({ 16: 6 })),
-    rawPlayer("Back Other", rawScores({ 18: 6 })),
-    rawPlayer("Back Third", rawScores({ 10: 7 })),
-  ] }], 1, [], { scoringSystem: "handicap", tournamentFormat: "split9" });
-  assert.equal(backCb1.splitNine?.secondChampion?.name, "Back CB1");
-  assert.equal(backCb1.splitNine?.secondAwardCountbacks["Back CB1"], "CB1");
+  const appRows = splitNineLeaderboardRows(result.splitNine, "front", "app");
+  assert.equal(appRows.find((row) => row.player.name === "Front CB6")?.rank, appRows.find((row) => row.player.name === "Front Other")?.rank, "raw equal Nett scores remain tied in the leaderboard");
+  assert.equal(appRows.find((row) => row.player.name === "Front CB6")?.award, "Champion");
+  assert.equal(appRows.find((row) => row.player.name === "Front CB6")?.notes.includes("Won on CB6"), true);
+  const imageRows = splitNineLeaderboardRows(result.splitNine, "front", "export");
+  assert.deepEqual(imageRows.find((row) => row.player.name === "Front CB6")?.notes, [], "the image omits countback notes");
 });
