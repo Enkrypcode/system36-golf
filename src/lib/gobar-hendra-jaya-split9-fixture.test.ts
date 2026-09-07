@@ -1,0 +1,30 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { loadCourseCatalog } from "./course-catalog.ts";
+import { loadGobarHendraSplitNineFixture } from "./gobar-hendra-jaya-split9-fixture.ts";
+import { calculateTournamentWinners } from "./winner-engine.ts";
+
+test("GOBAR Hendra Jaya Split 9-Hole demo fixture loads complete scorecards and reproduces its awards", () => {
+  const courses = loadCourseCatalog();
+  const fixture = loadGobarHendraSplitNineFixture(courses);
+  assert.ok(fixture);
+  assert.equal(fixture.name, "GOBAR - Hendra Jaya 62th Anniversary");
+  assert.equal(fixture.scoringSystem, "handicap");
+  assert.equal(fixture.tournamentFormat, "split9");
+  assert.equal(fixture.jackpotEnabled, false);
+  assert.equal(fixture.rounds.length, 1);
+  assert.equal(fixture.scores[1].length, 9);
+  assert.ok(fixture.scores[1].every((player) => player.id.startsWith("gobar-hendra:") && typeof player.handicap === "number" && player.scores.length === 18 && player.scores.every((score) => typeof score === "number" && Number.isInteger(score) && score > 0)));
+  const course = courses.find((candidate) => candidate.id === fixture.rounds[0].courseId);
+  assert.ok(course?.pars);
+  const result = calculateTournamentWinners([{ id: 1, pars: course.pars, players: fixture.scores[1] }], 2, [12], { scoringSystem: "handicap", tournamentFormat: "split9" });
+  const split = result.splitNine!;
+  assert.equal(split.overallAwards.find((award) => award.code === "BGO")?.winner?.name, "KUNCORO KUKUH");
+  assert.equal(split.overallAwards.find((award) => award.code === "BNO")?.winner?.name, "SUYITNO");
+  assert.equal(split.firstAwards["gobar-hendra:timbul-hutagaol"], "Champion");
+  assert.equal(split.firstAwards["gobar-hendra:bambang-susigit"], "Runner Up 1");
+  assert.equal(split.firstAwards["gobar-hendra:panca-priantara"], "Runner Up 2");
+  assert.equal(split.secondAwards["gobar-hendra:rusman-napitupulu"], "Champion");
+  assert.equal(split.secondAwards["gobar-hendra:hendra-jaya"], "Runner Up 1");
+  assert.equal(split.secondAwards["gobar-hendra:alfian-syarofi"], "Runner Up 2");
+});

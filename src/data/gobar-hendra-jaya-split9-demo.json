@@ -1,0 +1,15 @@
+{
+  "tournamentName": "GOBAR - Hendra Jaya 62th Anniversary",
+  "course": "The Manor Golf & Estate",
+  "participants": [
+    { "id": "gobar-hendra:suyitno", "name": "SUYITNO", "handicap": 20, "pairing": "1", "scores": [5,5,5,4,5,5,5,4,5,4,5,4,6,5,5,6,3,7] },
+    { "id": "gobar-hendra:hendra-jaya", "name": "HENDRA JAYA", "handicap": 13, "pairing": "1", "scores": [6,5,5,3,5,5,5,4,5,4,5,5,6,5,5,5,2,6] },
+    { "id": "gobar-hendra:eddy-fritz", "name": "EDDY FRITZ", "handicap": 18, "pairing": "2", "scores": [5,6,5,4,6,5,5,4,6,5,5,6,8,6,6,5,3,8] },
+    { "id": "gobar-hendra:bambang-susigit", "name": "BAMBANG SUSIGIT", "handicap": 14, "pairing": "1", "scores": [5,5,4,4,5,4,5,3,5,5,5,5,7,5,5,6,4,6] },
+    { "id": "gobar-hendra:timbul-hutagaol", "name": "TIMBUL HUTAGAOL", "handicap": 16, "pairing": "2", "scores": [5,5,4,3,5,5,4,3,5,5,5,6,8,4,6,5,3,7] },
+    { "id": "gobar-hendra:alfian-syarofi", "name": "ALFIAN SYAROFI", "handicap": 16, "pairing": "2", "scores": [6,6,5,5,6,6,5,4,5,4,4,4,6,5,7,7,6,5] },
+    { "id": "gobar-hendra:panca-priantara", "name": "PANCA PRIANTARA", "handicap": 9, "pairing": "3", "scores": [5,5,4,4,5,4,4,3,5,5,5,5,6,5,8,6,4,6] },
+    { "id": "gobar-hendra:kuncoro-kukuh", "name": "KUNCORO KUKUH", "handicap": 9, "pairing": "3", "scores": [5,4,4,3,5,4,4,3,4,4,4,4,6,3,5,6,5,5] },
+    { "id": "gobar-hendra:rusman-napitupulu", "name": "RUSMAN NAPITUPULU", "handicap": 14, "pairing": "2", "scores": [5,5,5,4,5,5,5,3,5,4,4,4,7,5,5,5,3,5] }
+  ]
+}
