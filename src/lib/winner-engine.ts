@@ -9,7 +9,8 @@ export type TournamentPlayer = {
 export type TieBreakStage = "HCP" | "HANDICAP" | "CB9" | "CB6" | "CB3" | "CB1";
 export type Award = { code: string; label: string; winner?: TournamentPlayer; tied?: TournamentPlayer[]; tiedOpponents?: TournamentPlayer[]; countbackStage?: TieBreakStage };
 export type SplitNinePlayer = { key: string; name: string; frontGross: number; backGross: number; halfHandicap: number; frontNett: number; backNett: number; frontRank: number; backRank: number };
-export type SplitNineResult = { leaderboard: SplitNinePlayer[]; firstChampion?: SplitNinePlayer; firstTied?: SplitNinePlayer[]; secondChampion?: SplitNinePlayer; secondTied?: SplitNinePlayer[] };
+export type SplitNineAwardPosition = "Champion" | "Runner Up 1" | "Runner Up 2";
+export type SplitNineResult = { leaderboard: SplitNinePlayer[]; firstAwards: Record<string, SplitNineAwardPosition>; secondAwards: Record<string, SplitNineAwardPosition>; firstChampion?: SplitNinePlayer; firstTied?: SplitNinePlayer[]; secondChampion?: SplitNinePlayer; secondTied?: SplitNinePlayer[] };
 export type WinnerResult = { eligible: TournamentPlayer[]; notEligible: number; flights: Record<string, TournamentPlayer[]>; awards: Award[]; splitNine?: SplitNineResult; validationError?: string };
 export type WinnerOptions = { scoringSystem?: ScoringSystem; tournamentFormat?: TournamentFormat; nettTieBreakMethod?: NettTieBreakMethod };
 
@@ -60,6 +61,13 @@ function rankedNine(players: SplitNinePlayer[], metric: "frontNett" | "backNett"
   });
 }
 
+function splitNineAwardPositions(players: SplitNinePlayer[], metric: "frontNett" | "backNett", winner?: SplitNinePlayer, excludedKey?: string): Record<string, SplitNineAwardPosition> {
+  if (!winner) return {};
+  const candidates = players.filter((player) => player.key !== excludedKey).sort((left, right) => left[metric] - right[metric] || left.name.localeCompare(right.name));
+  const positions: SplitNineAwardPosition[] = ["Champion", "Runner Up 1", "Runner Up 2"];
+  return Object.fromEntries(candidates.slice(0, positions.length).map((player, index) => [player.key, positions[index]]));
+}
+
 function calculateSplitNine(players: TournamentPlayer[]): SplitNineResult {
   const source = players.map((player) => {
     const halfHandicap = (player.handicap ?? 0) / 2;
@@ -77,7 +85,7 @@ function calculateSplitNine(players: TournamentPlayer[]): SplitNineResult {
   const secondTied = backLowest === undefined ? [] : secondCandidates.filter((player) => player.backNett === backLowest);
   const secondChampion = secondTied.length === 1 ? secondTied[0] : undefined;
   const byKey = new Map(back.map((player) => [player.key, player]));
-  return { leaderboard: front.map((player) => ({ ...player, backRank: byKey.get(player.key)?.backRank ?? 0 })), ...(firstChampion ? { firstChampion } : firstTied.length ? { firstTied } : {}), ...(secondChampion ? { secondChampion } : secondTied.length ? { secondTied } : {}) };
+  return { leaderboard: front.map((player) => ({ ...player, backRank: byKey.get(player.key)?.backRank ?? 0 })), firstAwards: splitNineAwardPositions(front, "frontNett", firstChampion), secondAwards: splitNineAwardPositions(back, "backNett", secondChampion, firstChampion?.key), ...(firstChampion ? { firstChampion } : firstTied.length ? { firstTied } : {}), ...(secondChampion ? { secondChampion } : secondTied.length ? { secondTied } : {}) };
 }
 export function calculateTournamentWinners(rounds: TournamentRoundScores[], flightCount: number, flightLimits: number[] = [], options: WinnerOptions = {}): WinnerResult {
   const scoringSystem = options.scoringSystem ?? "system36";
