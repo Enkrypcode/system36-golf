@@ -169,12 +169,12 @@ const handicapPlayer = (id: string, handicap: number, front: number, back: numbe
 const rawScores = (changes: Record<number, number>) => Array.from({ length: 18 }, (_, index) => changes[index + 1] ?? 4);
 const rawPlayer = (name: string, scores: number[], handicap = 0) => ({ id: name, name, handicap, scores });
 
-test("Split 9-Hole assigns BGO, BNO, then both nines with a strict one-award-per-player cascade", () => {
+test("Split 9-Hole assigns BGO, BNO, then both nines while only the 1st Nine Champion is excluded from the 2nd Nine", () => {
   const result = calculateTournamentWinners([round(1, [
     handicapPlayer("BGO", 10, 35, 35),
     handicapPlayer("BNO", 30, 40, 37),
     handicapPlayer("First Champion", 20, 40, 50),
-    handicapPlayer("First Runner 1", 20, 41, 50),
+    handicapPlayer("First Runner 1", 20, 41, 37),
     handicapPlayer("First Runner 2", 20, 42, 50),
     handicapPlayer("Second Champion", 20, 60, 40),
     handicapPlayer("Second Runner 1", 20, 60, 41),
@@ -187,14 +187,14 @@ test("Split 9-Hole assigns BGO, BNO, then both nines with a strict one-award-per
   assert.equal(split.firstAwards["First Champion"], "Champion");
   assert.equal(split.firstAwards["First Runner 1"], "Runner Up 1");
   assert.equal(split.firstAwards["First Runner 2"], "Runner Up 2");
-  assert.equal(split.secondAwards["Second Champion"], "Champion");
-  assert.equal(split.secondAwards["Second Runner 1"], "Runner Up 1");
-  assert.equal(split.secondAwards["Second Runner 2"], "Runner Up 2");
+  assert.equal(split.secondAwards["First Runner 1"], "Champion", "1st Nine Runner Up 1 remains eligible for the 2nd Nine");
+  assert.equal(split.secondAwards["Second Champion"], "Runner Up 1");
+  assert.equal(split.secondAwards["Second Runner 1"], "Runner Up 2");
   assert.equal(split.firstAwards.BGO, undefined, "Overall winners are excluded from the 1st Nine");
   assert.equal(split.firstAwards.BNO, undefined, "Overall winners are excluded from the 1st Nine");
-  assert.equal(split.secondAwards["First Champion"], undefined, "1st Nine winners are excluded from the 2nd Nine");
-  const allWinners = [...split.overallAwards.flatMap((award) => award.winner ? [award.winner.key] : []), ...Object.keys(split.firstAwards), ...Object.keys(split.secondAwards)];
-  assert.equal(new Set(allWinners).size, allWinners.length, "one player may receive only one Split 9-Hole award");
+  assert.equal(split.secondAwards["First Champion"], undefined, "Only the 1st Nine Champion is excluded from the 2nd Nine");
+  assert.equal(split.secondAwards.BGO, undefined, "BGO remains excluded from the 2nd Nine");
+  assert.equal(split.secondAwards.BNO, undefined, "BNO remains excluded from the 2nd Nine");
 });
 
 test("Split 9-Hole keeps tied Nett ranks while countback decides the eligible award order", () => {
@@ -215,5 +215,5 @@ test("Split 9-Hole keeps tied Nett ranks while countback decides the eligible aw
   assert.equal(split.firstAwards["Front CB6"], "Champion");
   assert.equal(split.firstAwardCountbacks["Front CB6"], "CB6");
   assert.equal(split.firstAwards["Front Other"], "Runner Up 1", "the next tied player cascades to Runner Up 1");
-  assert.equal(split.secondAwards["Front CB6"], undefined, "a 1st Nine award winner cannot receive a 2nd Nine award");
+  assert.equal(split.secondAwards["Front CB6"], undefined, "the 1st Nine Champion cannot receive a 2nd Nine award");
 });

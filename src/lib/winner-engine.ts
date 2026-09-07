@@ -129,9 +129,9 @@ function calculateSplitNine(players: TournamentPlayer[], nettTieBreakMethod: Net
   });
   const front = rankedNine(source, "frontNett", "frontRank");
   const first = assignSplitNineAwards(front, "frontNett", "front", scoresByKey, overallWinnerKeys);
-  const firstWinnerKeys = new Set(Object.keys(first.awards));
+  const firstChampionKey = first.champion?.key;
   const back = rankedNine(source, "backNett", "backRank");
-  const second = assignSplitNineAwards(back, "backNett", "back", scoresByKey, new Set([...overallWinnerKeys, ...firstWinnerKeys]));
+  const second = assignSplitNineAwards(back, "backNett", "back", scoresByKey, new Set([...overallWinnerKeys, ...(firstChampionKey ? [firstChampionKey] : [])]));
   const byKey = new Map(back.map((player) => [player.key, player]));
   return { leaderboard: front.map((player) => ({ ...player, backRank: byKey.get(player.key)?.backRank ?? 0 })), overallAwards, firstAwards: first.awards, secondAwards: second.awards, firstAwardCountbacks: first.countbacks, secondAwardCountbacks: second.countbacks, ...(first.champion ? { firstChampion: first.champion } : first.tied?.length ? { firstTied: first.tied } : {}), ...(second.champion ? { secondChampion: second.champion } : second.tied?.length ? { secondTied: second.tied } : {}) };
 }
