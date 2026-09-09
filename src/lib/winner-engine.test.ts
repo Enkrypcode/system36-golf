@@ -141,6 +141,18 @@ test("System 36 Nett ties use the selected Tournament HCP36 or Countback method"
   assert.equal(countbackResult?.countbackStage, "CB9");
 });
 
+test("System 36 Nett Only removes Gross awards and keeps the selected Nett tie-break", () => {
+  const lowerHcp = system36TiePlayer("Lower HCP36", [10]);
+  const higherHcp = system36TiePlayer("Higher HCP36", [1, 2]);
+  const nettOnly = calculateTournamentWinners([round(1, [lowerHcp, higherHcp])], 1, [], { scoringSystem: "system36", awardMode: "nett-only", nettTieBreakMethod: "lower-handicap" });
+  assert.deepEqual(nettOnly.awards.map((award) => award.code), ["BN 1", "BN 2", "BN 3", "BN 1 A", "BN 2 A", "BN 3 A"]);
+  assert.equal(nettOnly.awards.some((award) => award.code.startsWith("BG")), false);
+  assert.equal(nettOnly.awards.find((award) => award.code === "BN 1")?.winner?.name, "Lower HCP36");
+  assert.equal(nettOnly.awards.find((award) => award.code === "BN 1")?.countbackStage, "HCP");
+
+  const grossAndNett = calculateTournamentWinners([round(1, [lowerHcp, higherHcp])], 1, [], { scoringSystem: "system36", awardMode: "gross-nett", nettTieBreakMethod: "lower-handicap" });
+  assert.deepEqual(grossAndNett.awards.map((award) => award.code), ["BGO", "BNO", "BGA", "BN 1 A", "BN 2 A"]);
+});
 test("System 36 Nett countback progresses through CB6, CB3, CB1, then Manual Decision", () => {
   const cb6 = system36NettAward([system36TiePlayer("CB6 better", [1, 10]), system36TiePlayer("CB6 worse", [1, 13])], "lower-handicap");
   assert.equal(cb6?.winner?.name, "CB6 better");
@@ -255,4 +267,11 @@ test("Handicap Nett Only uses the selected Nett tie-break method", () => {
   const countbackResult = calculateTournamentWinners([round(1, [lowerHandicap, higherHandicap])], 1, [], { scoringSystem: "handicap", awardMode: "nett-only", nettTieBreakMethod: "countback" });
   assert.equal(countbackResult.awards.find((award) => award.code === "BN 1")?.winner?.name, "Higher Handicap");
   assert.equal(countbackResult.awards.find((award) => award.code === "BN 1")?.countbackStage, "CB9");
+});
+test("zero Flights and disabled Overall awards support tournament-wide Nett-only positions", () => {
+  const result = calculateTournamentWinners([round(1, [player("A", scoresWith({ 1: 5 })), player("B", scoresWith({ 2: 5 })), player("C", scoresWith({ 3: 5 }))])], 0, [], { scoringSystem: "system36", awardMode: "nett-only", overallAwards: false });
+  assert.deepEqual(result.awards.map((award) => award.code), ["BN 1", "BN 2", "BN 3"]);
+  assert.deepEqual(result.flights, {});
+  const noAwards = calculateTournamentWinners([round(1, [player("A")])], 0, [], { scoringSystem: "system36", awardMode: "gross-nett", overallAwards: false });
+  assert.equal(noAwards.awards.length, 0);
 });

@@ -13,7 +13,7 @@ export type SplitNineAwardPosition = "Champion" | "Runner Up 1" | "Runner Up 2";
 export type SplitNineCountbackStage = "CB6" | "CB3" | "CB1";
 export type SplitNineResult = { leaderboard: SplitNinePlayer[]; overallAwards: Award[]; firstAwards: Record<string, SplitNineAwardPosition>; secondAwards: Record<string, SplitNineAwardPosition>; firstAwardCountbacks: Record<string, SplitNineCountbackStage>; secondAwardCountbacks: Record<string, SplitNineCountbackStage>; firstChampion?: SplitNinePlayer; firstTied?: SplitNinePlayer[]; secondChampion?: SplitNinePlayer; secondTied?: SplitNinePlayer[] };
 export type WinnerResult = { eligible: TournamentPlayer[]; notEligible: number; flights: Record<string, TournamentPlayer[]>; awards: Award[]; splitNine?: SplitNineResult; validationError?: string };
-export type WinnerOptions = { scoringSystem?: ScoringSystem; tournamentFormat?: TournamentFormat; nettTieBreakMethod?: NettTieBreakMethod; awardMode?: AwardMode };
+export type WinnerOptions = { scoringSystem?: ScoringSystem; tournamentFormat?: TournamentFormat; nettTieBreakMethod?: NettTieBreakMethod; awardMode?: AwardMode; overallAwards?: boolean };
 
 const keyFor = (player: Player) => player.id || player.name.trim().toLocaleLowerCase();
 const complete = (player: Player) => player.scores.length === 18 && player.scores.every((score) => Number.isInteger(score) && (score as number) >= 1);
@@ -138,7 +138,9 @@ function calculateSplitNine(players: TournamentPlayer[], nettTieBreakMethod: Net
 export function calculateTournamentWinners(rounds: TournamentRoundScores[], flightCount: number, flightLimits: number[] = [], options: WinnerOptions = {}): WinnerResult {
   const scoringSystem = options.scoringSystem ?? "system36";
   const tournamentFormat = scoringSystem === "handicap" && (options.tournamentFormat === "psgc" || options.tournamentFormat === "split9") ? options.tournamentFormat : "standard";
-  const awardMode: AwardMode = scoringSystem === "handicap" && tournamentFormat !== "split9" && options.awardMode === "nett-only" ? "nett-only" : "gross-nett";
+  const awardMode: AwardMode = tournamentFormat !== "split9" && options.awardMode === "nett-only" ? "nett-only" : "gross-nett";
+  const overallAwards = tournamentFormat === "psgc" || options.overallAwards !== false;
+  const nettTieBreakAwards = awardMode === "nett-only" && !overallAwards && tournamentFormat === "standard" && flightCount === 0;
   const nettTieBreakMethod = options.nettTieBreakMethod ?? (scoringSystem === "system36" || tournamentFormat === "psgc" ? "lower-handicap" : "countback");
   if (!rounds.length) return { eligible: [], notEligible: 0, flights: {}, awards: [] };
   const entries = new Map<string, Map<number, Player>>();
@@ -165,9 +167,10 @@ export function calculateTournamentWinners(rounds: TournamentRoundScores[], flig
     for (const category of psgcCategories) flights[category] = eligible.filter((player) => player.awardCategory === category).map((player) => ({ ...player, flight: category }));
   } else {
     const flightValue = (player: TournamentPlayer) => scoringSystem === "handicap" ? player.handicap ?? 0 : player.averageHcp36;
-    const count = Math.max(1, flightCount);
+    const count = Math.max(0, flightCount);
     if (flightLimits.length !== Math.max(0, count - 1) || flightLimits.some((limit, index) => index > 0 && limit <= flightLimits[index - 1])) return { eligible, notEligible: entries.size - eligible.length, flights, awards: [], validationError: "Flight handicap limits must increase." };
-    const sortedByHcp = [...eligible].sort((a, b) => flightValue(a) - flightValue(b) || a.name.localeCompare(b.name));
+    if (count === 0) { /* This tournament intentionally has no flight awards. */ }
+    const sortedByHcp = count === 0 ? [] : [...eligible].sort((a, b) => flightValue(a) - flightValue(b) || a.name.localeCompare(b.name));
     for (const player of sortedByHcp) {
       const value = flightValue(player); const index = flightLimits.findIndex((limit) => value <= limit); const flight = flightName(index === -1 ? count - 1 : index);
       player.flight = flight; (flights[flight] ??= []).push(player);
@@ -179,6 +182,7 @@ export function calculateTournamentWinners(rounds: TournamentRoundScores[], flig
   const addAward = (code: string, label: string, candidates: TournamentPlayer[], metric: "aggregateGross" | "aggregateNett") => {
     const award = selectAward(code, label, candidates, metric, scoringSystem, nettTieBreakMethod); awards.push(award); if (award.winner) awardedPlayerKeys.add(award.winner.key);
   };
+  if (overallAwards || nettTieBreakAwards) {
   if (awardMode === "nett-only") {
     addAward("BN 1", "Best Nett 1", available(eligible), "aggregateNett");
     addAward("BN 2", "Best Nett 2", available(eligible), "aggregateNett");
@@ -186,6 +190,7 @@ export function calculateTournamentWinners(rounds: TournamentRoundScores[], flig
   } else {
     addAward("BGO", "Best Gross Overall", available(eligible), "aggregateGross");
     addAward("BNO", "Best Nett Overall", available(eligible), "aggregateNett");
+  }
   }
   if (tournamentFormat === "psgc") {
     for (const flight of ["A", "B", "C"] as const) {
@@ -200,7 +205,7 @@ export function calculateTournamentWinners(rounds: TournamentRoundScores[], flig
     addAward("BN 2 SS", "Best Nett 2 Super Senior", available(superSenior), "aggregateNett");
     addAward("BN 3 SS", "Best Nett 3 Super Senior", available(superSenior), "aggregateNett");
   } else {
-    for (let index = 0; index < Math.max(1, flightCount); index++) {
+    for (let index = 0; index < Math.max(0, flightCount); index++) {
       const flight = flightName(index); const members = flights[flight] ?? [];
       if (awardMode === "gross-nett") addAward(`BG${flight}`, `Best Gross ${flight}`, available(members), "aggregateGross");
       addAward(`BN 1 ${flight}`, `Best Nett 1 ${flight}`, available(members), "aggregateNett");

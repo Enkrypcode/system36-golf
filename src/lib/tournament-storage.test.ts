@@ -13,7 +13,10 @@ const saved: SavedTournament = {
   flightLimits: [12],
   scoringSystem: "handicap",
   tournamentFormat: "psgc",
+  overallAwards: true,
   awardMode: "gross-nett",
+  system36AwardMode: "gross-nett",
+  handicapAwardMode: "gross-nett",
   nettTieBreakMethod: "lower-handicap",
   system36NettTieBreakMethod: "lower-handicap",
   handicapNettTieBreakMethod: "lower-handicap",
@@ -72,4 +75,21 @@ test("Award Mode persists for Handicap tournaments and older saves default to Gr
   const older = { ...saved } as Record<string, unknown>;
   delete older.awardMode;
   assert.equal(parseSavedTournament(JSON.stringify(older))?.awardMode, "gross-nett");
+});
+test("Award Mode stores separate selections for System 36 and Handicap", () => {
+  const restored = parseSavedTournament(serializeTournament({ ...saved, system36AwardMode: "nett-only", handicapAwardMode: "gross-nett" }));
+  assert.equal(restored?.system36AwardMode, "nett-only");
+  assert.equal(restored?.handicapAwardMode, "gross-nett");
+  const legacySystem36 = { ...saved, scoringSystem: "system36", awardMode: "nett-only" } as Record<string, unknown>;
+  delete legacySystem36.system36AwardMode;
+  delete legacySystem36.handicapAwardMode;
+  const legacyRestored = parseSavedTournament(JSON.stringify(legacySystem36));
+  assert.equal(legacyRestored?.system36AwardMode, "nett-only");
+  assert.equal(legacyRestored?.handicapAwardMode, "gross-nett");
+});
+test("zero Flights with no boundaries and disabled Overall Awards persist", () => {
+  const restored = parseSavedTournament(serializeTournament({ ...saved, flights: 0, flightLimits: [], overallAwards: false }));
+  assert.equal(restored?.flights, 0);
+  assert.deepEqual(restored?.flightLimits, []);
+  assert.equal(restored?.overallAwards, false);
 });
