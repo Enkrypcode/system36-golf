@@ -16,6 +16,8 @@ export type Player = {
 export type ScoringSystem = "system36" | "handicap";
 export type TournamentFormat = "standard" | "psgc" | "split9";
 export type NettTieBreakMethod = "lower-handicap" | "countback";
+/** Controls which Handicap awards are assigned; it never changes score calculations. */
+export type AwardMode = "gross-nett" | "nett-only";
 export type AwardCategory = "A" | "B" | "C" | "SS";
 
 export const frontPar = (pars: number[]) => pars.slice(0, 9).reduce((total: number, par: number) => total + par, 0);

@@ -69,6 +69,13 @@
 .setup-scoring-field {
   min-width: 238px;
 }
+.award-mode-field {
+  min-width: 202px;
+}
+
+.award-mode-field .scoring-system-toggle button {
+  padding: 0 12px;
+}
 
 .scoring-system-toggle {
   display: inline-flex;
@@ -498,3 +505,62 @@
 .split-nine-overall{margin:0 0 14px;border:1px solid var(--line);border-radius:6px;background:#fff;overflow:hidden}.split-nine-overall h3{margin:0;padding:10px 12px;border-bottom:1px solid var(--line);color:#31556e;font-size:11px;text-transform:uppercase}.split-nine-overall>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.split-nine-overall article{display:flex;align-items:center;gap:10px;padding:11px 12px}.split-nine-overall article+article{border-left:1px solid var(--line)}.split-nine-overall b{color:#1769aa;font-size:12px}.split-nine-overall span{display:grid;gap:2px}.split-nine-overall strong{font-size:13px}.split-nine-overall small{color:#718396;font-size:10px}
 .split-nine-export-overall{display:grid;gap:7px;margin:0 0 18px}.split-nine-export-overall h3{margin:0;color:#31556e;font-size:14px;letter-spacing:.6px;text-transform:uppercase}.split-nine-export-overall>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.split-nine-export-overall article{display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px;align-items:center;border:1px solid #d5e0e9;border-radius:7px;background:#f7fafc;padding:12px 14px}.split-nine-export-overall b{color:#1769aa;font-size:15px}.split-nine-export-overall span{font-size:15px;font-weight:600}.split-nine-export-overall small{grid-column:2;color:#617b91;font-size:12px}
 @media(max-width:570px){.split-nine-overall>div,.split-nine-export-overall>div{grid-template-columns:1fr}.split-nine-overall article+article{border-top:1px solid var(--line);border-left:0}}
+/* Tournament Setup: two compact, aligned control rows. */
+.setup-control-rows {
+  display: grid;
+  gap: 14px;
+  margin: 16px 0 18px;
+}
+
+.setup-control-rows .setup-inline-fields {
+  display: grid;
+  align-items: start;
+  gap: 20px;
+  margin: 0;
+}
+
+.setup-primary-fields {
+  grid-template-columns: 238px 172px 172px;
+}
+
+.setup-secondary-fields {
+  grid-template-columns: 202px 238px 202px;
+}
+
+.setup-round-count {
+  white-space: nowrap;
+}
+
+.setup-round-count select {
+  margin-top: 8px;
+  min-height: 40px;
+}
+
+.jackpot-setup {
+  margin-top: 0;
+}
+
+@media (max-width: 834px) {
+  .setup-control-rows .setup-inline-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .setup-control-rows .setup-scoring-field,
+  .setup-control-rows .setup-round-count,
+  .setup-control-rows .setup-format {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 570px) {
+  .setup-control-rows {
+    gap: 12px;
+    margin: 14px 0 16px;
+  }
+
+  .setup-control-rows .setup-inline-fields {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}

@@ -217,3 +217,42 @@ test("Split 9-Hole keeps tied Nett ranks while countback decides the eligible aw
   assert.equal(split.firstAwards["Front Other"], "Runner Up 1", "the next tied player cascades to Runner Up 1");
   assert.equal(split.secondAwards["Front CB6"], undefined, "the 1st Nine Champion cannot receive a 2nd Nine award");
 });
+test("Handicap Nett Only assigns three Nett positions and removes Gross awards", () => {
+  const field = [
+    handicapPlayer("Nett 1", 20, 40, 40),
+    handicapPlayer("Nett 2", 18, 40, 40),
+    handicapPlayer("Nett 3", 16, 40, 40),
+    handicapPlayer("Flight Nett 1", 14, 40, 40),
+    handicapPlayer("Flight Nett 2", 12, 40, 40),
+    handicapPlayer("Flight Nett 3", 10, 40, 40),
+  ];
+  const nettOnly = calculateTournamentWinners([round(1, field)], 1, [], { scoringSystem: "handicap", tournamentFormat: "standard", awardMode: "nett-only" });
+  assert.deepEqual(nettOnly.awards.map((award) => award.code), ["BN 1", "BN 2", "BN 3", "BN 1 A", "BN 2 A", "BN 3 A"]);
+  assert.deepEqual(nettOnly.awards.map((award) => award.winner?.name), ["Nett 1", "Nett 2", "Nett 3", "Flight Nett 1", "Flight Nett 2", "Flight Nett 3"]);
+  assert.equal(nettOnly.awards.some((award) => award.code.startsWith("BG")), false);
+});
+
+test("Handicap Gross + Nett mode remains the default award structure", () => {
+  const field = [
+    handicapPlayer("Gross winner", 0, 35, 35),
+    handicapPlayer("Nett winner", 20, 40, 40),
+    handicapPlayer("Flight candidate", 10, 45, 45),
+    handicapPlayer("Flight candidate 2", 8, 46, 46),
+  ];
+  const implicit = calculateTournamentWinners([round(1, field)], 1, [], { scoringSystem: "handicap", tournamentFormat: "standard" });
+  const explicit = calculateTournamentWinners([round(1, field)], 1, [], { scoringSystem: "handicap", tournamentFormat: "standard", awardMode: "gross-nett" });
+  assert.deepEqual(implicit.awards.map((award) => award.code), ["BGO", "BNO", "BGA", "BN 1 A", "BN 2 A"]);
+  assert.deepEqual(explicit.awards.map((award) => award.code), implicit.awards.map((award) => award.code));
+});
+
+test("Handicap Nett Only uses the selected Nett tie-break method", () => {
+  const lowerHandicap = rawPlayer("Lower Handicap", rawScores({ 1: 2, 2: 3, 10: 5 }), 6);
+  const higherHandicap = rawPlayer("Higher Handicap", rawScores({ 1: 7, 10: 3 }), 10);
+  const lowerHandicapResult = calculateTournamentWinners([round(1, [lowerHandicap, higherHandicap])], 1, [], { scoringSystem: "handicap", awardMode: "nett-only", nettTieBreakMethod: "lower-handicap" });
+  assert.equal(lowerHandicapResult.awards.find((award) => award.code === "BN 1")?.winner?.name, "Lower Handicap");
+  assert.equal(lowerHandicapResult.awards.find((award) => award.code === "BN 1")?.countbackStage, "HANDICAP");
+
+  const countbackResult = calculateTournamentWinners([round(1, [lowerHandicap, higherHandicap])], 1, [], { scoringSystem: "handicap", awardMode: "nett-only", nettTieBreakMethod: "countback" });
+  assert.equal(countbackResult.awards.find((award) => award.code === "BN 1")?.winner?.name, "Higher Handicap");
+  assert.equal(countbackResult.awards.find((award) => award.code === "BN 1")?.countbackStage, "CB9");
+});

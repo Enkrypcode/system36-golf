@@ -16,3 +16,9 @@ test("Handicap winner CSV exports the single manual Handicap", () => {
   assert.match(csv, /"Handicap"/);
   assert.match(csv, /"BNO","Abdul Manan","A","165","141","71","70","9"/);
 });
+test("Nett Only winner CSV includes only the assigned Nett award positions", () => {
+  const csv = winnerCsv([{ code: "BN 1", label: "Best Nett 1", winner: { ...winner, handicap: 9 } }, { code: "BN 2", label: "Best Nett 2", winner: { ...winner, key: "b", name: "Fikri", handicap: 10 } }], 1, "handicap");
+  assert.match(csv, /"BN 1"/);
+  assert.match(csv, /"BN 2"/);
+  assert.doesNotMatch(csv, /"BG[OABC]"/);
+});

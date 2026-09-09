@@ -13,6 +13,7 @@ const saved: SavedTournament = {
   flightLimits: [12],
   scoringSystem: "handicap",
   tournamentFormat: "psgc",
+  awardMode: "gross-nett",
   nettTieBreakMethod: "lower-handicap",
   system36NettTieBreakMethod: "lower-handicap",
   handicapNettTieBreakMethod: "lower-handicap",
@@ -64,4 +65,11 @@ test("Split 9-Hole format persists as a Handicap tournament format", () => {
   const restored = parseSavedTournament(serializeTournament(splitNine));
   assert.equal(restored?.tournamentFormat, "split9");
   assert.equal(restored?.scoringSystem, "handicap");
+});
+test("Award Mode persists for Handicap tournaments and older saves default to Gross + Nett", () => {
+  const nettOnly = parseSavedTournament(serializeTournament({ ...saved, awardMode: "nett-only" }));
+  assert.equal(nettOnly?.awardMode, "nett-only");
+  const older = { ...saved } as Record<string, unknown>;
+  delete older.awardMode;
+  assert.equal(parseSavedTournament(JSON.stringify(older))?.awardMode, "gross-nett");
 });
