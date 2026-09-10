@@ -564,3 +564,54 @@
     gap: 12px;
   }
 }
+
+/* Score-only spreadsheet selection; metadata and summary cells remain outside this range. */
+.score-cell.score-range-selected { background: #eff9b8 !important; box-shadow: inset 0 2px #79a936, inset 0 -2px #79a936; position: relative; }
+.score-cell.score-range-start { box-shadow: inset 2px 0 #79a936, inset 0 2px #79a936, inset 0 -2px #79a936; }
+.score-cell.score-range-end { box-shadow: inset -2px 0 #79a936, inset 0 2px #79a936, inset 0 -2px #79a936; }
+.score-clipboard-error { margin: 8px 0 0; color: #a7503d; font-size: 11px; font-weight: bold; }
+
+/* Responsive score entry: one shared scroller, one horizontal sticky column. */
+.setup-primary-fields {
+  grid-template-columns: 238px 172px 220px;
+  column-gap: 20px;
+  align-items: start;
+}
+.setup-primary-fields .setup-scoring-field,
+.setup-primary-fields .setup-round-count,
+.setup-primary-fields .setup-format {
+  align-self: start;
+  margin: 0;
+}
+.setup-primary-fields .setup-format { width: 220px; }
+.setup-primary-fields .setup-scoring-field > span,
+.setup-primary-fields .setup-round-count,
+.setup-primary-fields .setup-format { white-space: nowrap; }
+
+/* Do not accumulate sticky metadata columns at tablet widths. */
+.score-table .sticky-number,
+.score-table .sticky-handicap,
+.score-table .sticky-award-category,
+.score-table .sticky-jackpot-front,
+.score-table .sticky-jackpot-back,
+.score-table .sticky-pairing { position: static !important; left: auto !important; z-index: auto !important; }
+.score-table .par-row th { position: static !important; top: auto !important; left: auto !important; z-index: auto !important; }
+.score-table .column-row th { position: sticky !important; top: 0 !important; left: auto !important; z-index: 20 !important; background: #123b5d; }
+.score-table tbody .sticky-player,
+.score-table .column-row .sticky-player { position: sticky !important; left: 0 !important; }
+.score-table tbody .sticky-player { z-index: 9 !important; background: #fff !important; box-shadow: 2px 0 0 #cbd7e1; }
+.score-table .column-row .sticky-player { z-index: 22 !important; background: #123b5d !important; box-shadow: 2px 0 0 #0d304c; }
+.score-table .par-row .sticky-player { position: static !important; left: auto !important; z-index: auto !important; box-shadow: none; }
+
+@media (max-width: 834px) {
+  .setup-primary-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .setup-primary-fields .setup-format { width: 100%; }
+}
+
+@media (max-width: 570px) {
+  .setup-primary-fields { grid-template-columns: 1fr; }
+}
+
+/* Row actions are portaled to the viewport so table scrolling cannot reposition or clip them. */
+.player-row-menu-popover { position: fixed; z-index: 100; width: 178px; padding: 5px; border: 1px solid #cbd7e1; border-radius: 6px; background: #fff; box-shadow: 0 8px 20px rgba(21, 49, 75, .18); }
+.player-row-menu-popover button { padding: 8px 10px; }

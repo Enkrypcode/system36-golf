@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Golf Scoring System",
-    short_name: "Golf Scoring",
+    name: "EnkrypScore — Golf Scoring System",
+    short_name: "EnkrypScore",
     display: "standalone",
     background_color: "#123B5D",
     theme_color: "#123B5D",
