@@ -625,3 +625,17 @@
     line-height: 1.25;
   }
 }
+
+/* Score import/export controls remain compact while wrapping naturally on smaller toolbars. */
+.score-import-mode { display: flex; align-items: center; gap: 5px; color: #6f8293; font-size: 10px; font-weight: bold; letter-spacing: .35px; text-transform: uppercase; white-space: nowrap; }
+.score-import-mode select { border: 1px solid #cbd7e1; border-radius: 4px; background: #fff; color: #355a76; padding: 4px 6px; font-size: 10px; font-weight: normal; letter-spacing: 0; text-transform: none; }
+.score-import-mode-note { margin-top: 4px !important; color: #45677f !important; }
+@media (max-width: 570px) { .score-import-mode { width: 100%; justify-content: space-between; } .score-import-mode select { flex: 1; max-width: 190px; } }
+
+/* Compact Score Entry export menu. */
+.score-export-menu { position: relative; flex: 0 0 auto; }
+.score-export-button { min-width: 88px; white-space: nowrap; }
+.score-export-options { position: absolute; z-index: 30; top: calc(100% + 5px); right: 0; display: grid; min-width: 142px; padding: 5px; border: 1px solid #cbd7e1; border-radius: 6px; background: #fff; box-shadow: 0 8px 20px rgba(21, 49, 75, .18); }
+.score-export-options button { border: 0; border-radius: 4px; background: transparent; color: #265171; padding: 8px 10px; font-size: 11px; font-weight: bold; text-align: left; white-space: nowrap; }
+.score-export-options button:hover, .score-export-options button:focus-visible { background: #eef6fb; color: #1769aa; outline: 0; }
+@media (max-width: 570px) { .score-export-menu { width: 100%; } .score-export-button { width: 100%; } .score-export-options { left: 0; right: auto; } }

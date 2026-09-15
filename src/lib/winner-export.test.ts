@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { exportFilename, winnerCsv } from "./winner-export.ts";
+import { exportFilename, tournamentResultsCsv, winnerCsv } from "./winner-export.ts";
 
 const winner = { key: "a", name: "Abdul Manan", flight: "A", aggregateGross: 165, aggregateNett: 141, averageHcp36: 10.5, roundGross: [82, 83], roundNett: [71, 70], finalScores: Array(18).fill(4), finalHcp36: 11 };
 
@@ -21,4 +21,15 @@ test("Nett Only winner CSV includes only the assigned Nett award positions", () 
   assert.match(csv, /"BN 1"/);
   assert.match(csv, /"BN 2"/);
   assert.doesNotMatch(csv, /"BG[OABC]"/);
+});
+
+test("results CSV includes Split 9-Hole calculated award positions", () => {
+  const results = tournamentResultsCsv({
+    eligible: [], notEligible: 0, flights: {}, awards: [], splitNine: {
+      leaderboard: [{ key: "a", name: "FIKRI", frontGross: 36, backGross: 37, halfHandicap: 4.5, frontNett: 31.5, backNett: 32.5, frontRank: 1, backRank: 1 }],
+      overallAwards: [], firstAwards: { a: "Champion" }, secondAwards: { a: "Runner Up 1" }, firstAwardCountbacks: {}, secondAwardCountbacks: { a: "CB3" },
+    },
+  }, 1, "handicap");
+  assert.match(results, /"Champion","FIKRI","1st Nine","36","31.5","4.5","1",""/);
+  assert.match(results, /"Runner Up 1","FIKRI","2nd Nine","37","32.5","4.5","1","CB3"/);
 });

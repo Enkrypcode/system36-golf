@@ -70,3 +70,24 @@ test("imported scores round-trip through normal tournament persistence", () => {
   };
   assert.deepEqual(parseSavedTournament(serializeTournament(tournament))?.tournamentScores[1][0].scores, validScores);
 });
+test("Scores Only keeps unmatched rows out and never creates players", () => {
+  const preview = previewScoreImport([headers, ["Unknown Player", ...validScores]], players, "scores-only");
+  assert.equal(preview.matchedCount, 0);
+  assert.equal(preview.newPlayerCount, 0);
+  assert.equal(preview.unmatched.length, 1);
+  assert.equal(applyScoreImport(players, preview.entries).length, players.length);
+});
+
+test("Players + Scores adds safely unmatched players while preserving matched player metadata", () => {
+  const preview = previewScoreImport([headers, ["  FIKRI  ", ...validScores], ["New   Player", ...Array(18).fill(5)]], players, "players-scores");
+  assert.equal(preview.rowsFound, 2);
+  assert.equal(preview.matchedCount, 1);
+  assert.equal(preview.newPlayerCount, 1);
+  assert.equal(preview.unmatched.length, 0);
+  const updated = applyScoreImport(players, preview.entries, { createPlayerId: (_entry, index) => `new-${index}` });
+  assert.equal(updated.length, 3);
+  assert.equal(updated[0].id, "fikri");
+  assert.equal(updated[0].pairing, "1A");
+  assert.deepEqual(updated[0].scores, validScores);
+  assert.deepEqual(updated[2], { id: "new-0", name: "New Player", scores: Array(18).fill(5) });
+});

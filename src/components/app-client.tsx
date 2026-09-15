@@ -12,7 +12,7 @@ import { parseSavedTournament, serializeTournament, TOURNAMENT_STORAGE_KEY, type
 import { loadKbpJngTestFixture } from "@/lib/real-test-fixture";
 import { loadPsgcRancamayaFixture, PSGC_FIXTURE_NAME, PSGC_SOURCE_NOTE } from "@/lib/psgc-rancamaya-fixture";
 import { loadGobarHendraSplitNineFixture } from "@/lib/gobar-hendra-jaya-split9-fixture";
-import { exportFilename, winnerCsv } from "@/lib/winner-export";
+import { exportFilename, tournamentResultsCsv } from "@/lib/winner-export";
 import { synchronizeRoundPlayerCounts } from "@/lib/player-removal";
 import { blankNovelty, noveltyText, noveltyTypes, type NoveltyEntry, type NoveltyType } from "@/lib/novelties";
 import { calculateJackpotResults, defaultJackpotSettings, isValidBlindHoles, normalizeBlindHoles, type JackpotSettings } from "@/lib/jackpot";
@@ -283,8 +283,8 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
-  const exportCsv = () => {
-    const blob = new Blob([winnerCsv(winnerResult.awards, rounds.length, scoringSystem)], { type: "text/csv;charset=utf-8" });
+  const exportResultsCsv = () => {
+    const blob = new Blob([tournamentResultsCsv(winnerResult, rounds.length, scoringSystem)], { type: "text/csv;charset=utf-8" });
     download(URL.createObjectURL(blob), exportFilename(name, "csv"));
   };
   const addNovelty = () => setNovelties((current) => [...current, blankNovelty(`novelty-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)]);
@@ -334,7 +334,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
       </section>}
       {step === 2 && <>{fixtureLoadNotice && !psgcSourceNoteDismissed && <div className="fixture-load-notice" role="status"><span>{fixtureLoadNotice}</span><button type="button" aria-label="Dismiss source note" title="Dismiss source note" onClick={() => { setPsgcSourceNoteDismissed(true); try { window.localStorage.setItem(PSGC_SOURCE_NOTE_DISMISSED_KEY, "dismissed"); } catch { /* Dismissal still applies for this session. */ } }}>×</button></div>}<ScoreEntry key={scoreEntryRevision} tournamentName={name} rounds={rounds} courses={courseById} savedScores={tournamentScores} scoringSystem={scoringSystem} tournamentFormat={tournamentFormat} jackpotEnabled={jackpot.enabled} jackpotBlindHoles={jackpot.revealed ? jackpot.blindHoles : []} jackpotRevealed={jackpot.revealed} onScoresChange={updateTournamentScores} onHandicapChange={(playerId, handicap) => setTournamentScores((current) => Object.fromEntries(Object.entries(current).map(([round, players]) => [round, players.map((player) => player.id === playerId ? { ...player, handicap } : player)])))} onBack={() => setStep(1)} onContinue={(scores) => { updateTournamentScores(scores); setStep(3); }} /></>}
       {step === 3 && <section className="awards-step">
-        <div className="awards-page-header"><div className="step-intro"><p>STEP 3</p><h1>Winners & awards</h1><span>Only players with a complete scorecard in every round are eligible for final awards.</span></div><div className="winner-export-actions"><button className="secondary-button" type="button" disabled={isExporting} onClick={saveWinnersImage}>{isExporting ? "Saving…" : "Save as Image"}</button>{!splitNineMode && <button className="secondary-button" type="button" onClick={exportCsv}>Export CSV</button>}</div></div>
+        <div className="awards-page-header"><div className="step-intro"><p>STEP 3</p><h1>Winners & awards</h1><span>Only players with a complete scorecard in every round are eligible for final awards.</span></div><div className="winner-export-actions"><button className="secondary-button" type="button" disabled={isExporting} onClick={saveWinnersImage}>{isExporting ? "Saving…" : "Save as Image"}</button><button className="secondary-button" type="button" onClick={exportResultsCsv}>Export Awards CSV</button></div></div>
         {exportError && <p className="validation-error">{exportError}</p>}
         {splitNineMode ? <section className="split-nine-results">
           <div className="split-nine-heading"><p>Dedicated Handicap competition</p><h2>Split 9-Hole Results</h2><span>Overall awards are assigned before the two nine-hole leaderboards. ½ Handicap is applied separately to each nine.</span></div>
