@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { adjustedJackpotTotal, calculateJackpotResults, defaultJackpotSettings, isValidBlindHoles } from "./jackpot.ts";
+import { adjustedJackpotTotal, calculateJackpotResults, calculateManualJackpotResultPair, calculateManualJackpotResults, defaultJackpotSettings, isValidBlindHoles } from "./jackpot.ts";
 import { handicapScoreSummary, scoreSummary, type Player } from "./scoring.ts";
 
 const pars = Array(18).fill(4);
@@ -8,7 +8,7 @@ const player = (id: string, scores: number[], front?: number, back?: number): Pl
 const holes = [3, 5, 13, 17];
 
 test("Jackpot defaults off and requires exactly two Front and two Back blind holes", () => {
-  assert.deepEqual(defaultJackpotSettings(), { enabled: false, blindHoles: [], locked: false, revealed: false });
+  assert.deepEqual(defaultJackpotSettings(), { enabled: false, mode: "blind-hole", blindHoles: [], locked: false, revealed: false });
   assert.equal(isValidBlindHoles(holes), true);
   assert.equal(isValidBlindHoles([1, 2, 3, 13]), false);
   assert.equal(isValidBlindHoles([1, 2, 12, 12]), false);
@@ -44,4 +44,32 @@ test("Jackpot works alongside System 36, Handicap, and PSGC metadata without cha
   assert.equal(psgcPlayer.awardCategory, "SS");
   assert.deepEqual(scoreSummary(scores, pars), system36Before);
   assert.deepEqual(handicapScoreSummary(scores, pars, psgcPlayer.handicap!), handicapBefore);
+});
+test("Manual Jackpot uses operator-entered values while Blind Hole validation remains intact", () => {
+  const manual: Player[] = [
+    { id: "A", name: "A", scores: Array(18).fill(9), jackpotManualFirstNine: 42, jackpotManualSecondNine: 40, jackpotManualNett: 67, jackpotTargetFront: 42, jackpotTargetBack: 39 },
+    { id: "B", name: "B", scores: Array(18).fill(1), jackpotManualFirstNine: 43, jackpotManualSecondNine: 39, jackpotManualNett: 10, jackpotTargetFront: 42, jackpotTargetBack: 39 },
+    { id: "C", name: "C", scores: Array(18).fill(4), jackpotManualFirstNine: 41, jackpotManualSecondNine: 41, jackpotTargetFront: 42, jackpotTargetBack: 40 },
+  ];
+  assert.equal(isValidBlindHoles([3, 5, 13, 17]), true);
+  const front = calculateManualJackpotResults(manual, "front");
+  assert.deepEqual(front.map(({ name, final, delta, result, rank }) => ({ name, final, delta, result, rank })), [
+    { name: "A", final: 42, delta: 0, result: "ELIGIBLE", rank: 1 },
+    { name: "B", final: 43, delta: 1, result: "ELIGIBLE", rank: 2 },
+    { name: "C", final: 41, delta: -1, result: "DIS", rank: null },
+  ]);
+  assert.equal(manual[0].jackpotManualNett, 67);
+});
+
+test("Manual Jackpot excludes the unique First Nine winner from Second Nine only", () => {
+  const manual: Player[] = [
+    { id: "A", name: "A", scores: Array(18).fill(4), jackpotManualFirstNine: 36, jackpotManualSecondNine: 36, jackpotTargetFront: 36, jackpotTargetBack: 36 },
+    { id: "B", name: "B", scores: Array(18).fill(4), jackpotManualFirstNine: 37, jackpotManualSecondNine: 37, jackpotTargetFront: 36, jackpotTargetBack: 36 },
+    { id: "C", name: "C", scores: Array(18).fill(4), jackpotManualFirstNine: 38, jackpotManualSecondNine: 38, jackpotTargetFront: 36, jackpotTargetBack: 36 },
+  ];
+  const pair = calculateManualJackpotResultPair(manual);
+  assert.equal(pair.front.find((entry) => entry.playerId === "A")?.rank, 1);
+  assert.equal(pair.back.find((entry) => entry.playerId === "A")?.excluded, true);
+  assert.equal(pair.back.find((entry) => entry.playerId === "A")?.rank, null);
+  assert.equal(pair.back.find((entry) => entry.playerId === "B")?.rank, 1);
 });

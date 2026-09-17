@@ -275,3 +275,18 @@ test("zero Flights and disabled Overall awards support tournament-wide Nett-only
   const noAwards = calculateTournamentWinners([round(1, [player("A")])], 0, [], { scoringSystem: "system36", awardMode: "gross-nett", overallAwards: false });
   assert.equal(noAwards.awards.length, 0);
 });
+
+test("Overall awards plus zero flights assign standalone Best Nett awards sequentially", () => {
+  const field = [
+    handicapPlayer("BGO", 0, 35, 35),
+    handicapPlayer("BNO", 20, 40, 40),
+    handicapPlayer("BN 1", 18, 42, 42),
+    handicapPlayer("BN 2", 16, 43, 43),
+    handicapPlayer("BN 3", 14, 44, 44),
+  ];
+  const result = calculateTournamentWinners([round(1, field)], 0, [], { scoringSystem: "handicap", tournamentFormat: "standard", awardMode: "gross-nett", overallAwards: true, additionalNettAwards: 3 });
+  assert.deepEqual(result.awards.map((award) => award.code), ["BGO", "BNO", "BN 1", "BN 2", "BN 3"]);
+  assert.deepEqual(result.awards.map((award) => award.winner?.name), ["BGO", "BNO", "BN 1", "BN 2", "BN 3"]);
+  assert.deepEqual(result.flights, {});
+  assert.equal(new Set(result.awards.flatMap((award) => award.winner ? [award.winner.key] : [])).size, 5, "each player receives at most one award");
+});

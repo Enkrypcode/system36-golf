@@ -8,7 +8,7 @@ const saved: SavedTournament = {
   name: "PETRO GOLF",
   roundCount: 1,
   rounds: [{ id: 1, courseId: 10, players: 1 }],
-  tournamentScores: { 1: [{ id: "player-1", name: "Imam Tajudi", pairing: "1A", handicap: 9, awardCategory: "A", jackpotTargetFront: 36, jackpotTargetBack: 37, scores: Array(18).fill(4) }] },
+  tournamentScores: { 1: [{ id: "player-1", name: "Imam Tajudi", pairing: "1A", handicap: 9, awardCategory: "A", jackpotTargetFront: 36, jackpotTargetBack: 37, jackpotManualFirstNine: 39, jackpotManualSecondNine: 41, jackpotManualNett: 68, scores: Array(18).fill(4) }] },
   flights: 2,
   flightLimits: [12],
   scoringSystem: "handicap",
@@ -20,7 +20,7 @@ const saved: SavedTournament = {
   nettTieBreakMethod: "lower-handicap",
   system36NettTieBreakMethod: "lower-handicap",
   handicapNettTieBreakMethod: "lower-handicap",
-  jackpot: { enabled: true, blindHoles: [3, 5, 13, 17], locked: true, revealed: false },
+  jackpot: { enabled: true, mode: "blind-hole", blindHoles: [3, 5, 13, 17], locked: true, revealed: false },
 };
 
 test("saved tournament state round-trips without derived scoring data", () => {
@@ -59,9 +59,10 @@ test("Jackpot settings and targets persist, while older tournaments default to J
   const restored = parseSavedTournament(serializeTournament(saved));
   assert.deepEqual(restored?.jackpot, saved.jackpot);
   assert.equal(restored?.tournamentScores[1][0].jackpotTargetFront, 36);
+  assert.equal(restored?.tournamentScores[1][0].jackpotManualNett, 68);
   const older = { ...saved } as Record<string, unknown>;
   delete older.jackpot;
-  assert.deepEqual(parseSavedTournament(JSON.stringify(older))?.jackpot, { enabled: false, blindHoles: [], locked: false, revealed: false });
+  assert.deepEqual(parseSavedTournament(JSON.stringify(older))?.jackpot, { enabled: false, mode: "blind-hole", blindHoles: [], locked: false, revealed: false });
 });
 test("Split 9-Hole format persists as a Handicap tournament format", () => {
   const splitNine = { ...saved, tournamentFormat: "split9" as const, handicapNettTieBreakMethod: "countback" as const };
@@ -92,4 +93,23 @@ test("zero Flights with no boundaries and disabled Overall Awards persist", () =
   assert.equal(restored?.flights, 0);
   assert.deepEqual(restored?.flightLimits, []);
   assert.equal(restored?.overallAwards, false);
+});
+
+test("Manual Jackpot mode and all manual operator values persist", () => {
+  const manual = { ...saved, jackpot: { enabled: true, mode: "manual" as const, blindHoles: [3, 5, 13, 17], locked: true, revealed: false } };
+  const restored = parseSavedTournament(serializeTournament(manual));
+  assert.equal(restored?.jackpot?.mode, "manual");
+  assert.deepEqual(restored?.jackpot?.blindHoles, [3, 5, 13, 17]);
+  assert.equal(restored?.jackpot?.locked, true);
+  assert.equal(restored?.jackpot?.revealed, false);
+  assert.equal(restored?.tournamentScores[1][0].jackpotManualFirstNine, 39);
+  assert.equal(restored?.tournamentScores[1][0].jackpotManualSecondNine, 41);
+  assert.equal(restored?.tournamentScores[1][0].jackpotManualNett, 68);
+  assert.equal(restored?.tournamentScores[1][0].jackpotTargetBack, 37);
+});
+test("Additional Nett Awards persist for an Overall, zero-flight tournament", () => {
+  const restored = parseSavedTournament(serializeTournament({ ...saved, flights: 0, flightLimits: [], overallAwards: true, additionalNettAwards: 3 }));
+  assert.equal(restored?.overallAwards, true);
+  assert.equal(restored?.flights, 0);
+  assert.equal(restored?.additionalNettAwards, 3);
 });

@@ -10,6 +10,10 @@ export type Player = {
   /** Optional blind-hole targets; used only by the Jackpot side competition. */
   jackpotTargetFront?: number;
   jackpotTargetBack?: number;
+  /** Manual Jackpot-only values; never used by primary scoring. */
+  jackpotManualFirstNine?: number;
+  jackpotManualSecondNine?: number;
+  jackpotManualNett?: number;
   scores: Array<number | null>;
 };
 
