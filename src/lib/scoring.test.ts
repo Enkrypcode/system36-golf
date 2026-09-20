@@ -1,27 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { nettAdjustmentForScore, pointForScore, scoreSummary } from "./scoring.ts";
+import { pointForScore, scoreSummary } from "./scoring.ts";
 
 const pars = Array(18).fill(4);
 const roundWith = (firstHoleScore: number) => [firstHoleScore, ...Array(17).fill(4)];
 
-test("residual nett adjustments avoid double-counting scores over par", () => {
-  assert.equal(nettAdjustmentForScore(1, 4), -2, "Albatross needs only the residual -2 after HCP 36");
-  assert.equal(nettAdjustmentForScore(2, 4), -2, "Eagle");
-  assert.equal(nettAdjustmentForScore(3, 4), -1, "Birdie");
-  assert.equal(nettAdjustmentForScore(4, 4), 0, "Par");
-  assert.equal(nettAdjustmentForScore(5, 4), 0, "Bogey");
-  assert.equal(nettAdjustmentForScore(6, 4), 0, "Double Bogey");
-  assert.equal(nettAdjustmentForScore(7, 4), 0, "Triple Bogey is already reflected by Gross - HCP 36");
-  assert.equal(nettAdjustmentForScore(8, 4), 0, "Quadruple Bogey is already reflected by Gross - HCP 36");
-});
-
-test("full Par 72 round nett outcomes match the System 36 regression cases", () => {
+test("System 36 assigns two points for Par or better and has no Nett adjustment", () => {
   const scenarios = [
     [4, 72, 36, 0, 72, "All Par"],
-    [3, 71, 37, -1, 71, "One Birdie"],
-    [2, 70, 38, -2, 70, "One Eagle"],
-    [1, 69, 38, -2, 69, "One Albatross"],
+    [3, 71, 36, 0, 71, "One Birdie"],
+    [2, 70, 36, 0, 70, "One Eagle"],
+    [1, 69, 36, 0, 69, "One Albatross"],
     [5, 73, 35, 1, 72, "One Bogey"],
     [6, 74, 34, 2, 72, "One Double Bogey"],
     [7, 75, 34, 2, 73, "One Triple Bogey"],
@@ -33,14 +22,23 @@ test("full Par 72 round nett outcomes match the System 36 regression cases", () 
     assert.equal(summary.gross, gross, `${label}: Gross`);
     assert.equal(summary.points, points, `${label}: Points`);
     assert.equal(summary.system36Handicap, hcp36, `${label}: HCP 36`);
-    assert.equal(summary.nett, nett, `${label}: final Nett`);
+    assert.equal(summary.nett, nett, `${label}: Nett = Gross - HCP 36`);
+    assert.equal("nettAdjustment" in summary, false, `${label}: no residual Nett adjustment is exposed`);
   }
 });
 
-test("existing point rules remain unchanged", () => {
-  assert.equal(pointForScore(2, 4), 4, "Eagle or better");
-  assert.equal(pointForScore(3, 4), 3, "Birdie");
+test("System 36 point mapping uses the corrected values", () => {
+  assert.equal(pointForScore(1, 4), 2, "Albatross");
+  assert.equal(pointForScore(2, 4), 2, "Eagle");
+  assert.equal(pointForScore(3, 4), 2, "Birdie");
   assert.equal(pointForScore(4, 4), 2, "Par");
   assert.equal(pointForScore(5, 4), 1, "Bogey");
   assert.equal(pointForScore(6, 4), 0, "Double Bogey");
+  assert.equal(pointForScore(7, 4), 0, "Triple Bogey");
+  assert.equal(pointForScore(8, 4), 0, "Quadruple Bogey");
+});
+
+test("the Gross 79 System 36 fixture produces Point 28, HCP36 8, and Nett 71", () => {
+  const summary = scoreSummary([3, ...Array(10).fill(4), ...Array(6).fill(5), 6], pars);
+  assert.deepEqual(summary, { front: 35, back: 44, gross: 79, points: 28, system36Handicap: 8, nett: 71 });
 });

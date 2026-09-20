@@ -13,7 +13,7 @@ test("eligibility, aggregates, average HCP 36, and one-round awards are calculat
   assert.equal(result.eligible.length, 2);
   assert.equal(result.eligible[0].aggregateGross, 71);
   assert.equal(result.eligible[0].aggregateNett, 71);
-  assert.equal(result.eligible[0].averageHcp36, -1);
+  assert.equal(result.eligible[0].averageHcp36, 0);
   assert.equal(result.awards.find((award) => award.code === "BGO")?.winner?.name, "A");
   assert.equal(result.awards.find((award) => award.code === "BNO")?.winner?.name, "B", "BGO is excluded from BNO");
 });
@@ -121,7 +121,7 @@ test("countback notes expose the opponent list only when a countback resolves a 
 });
 
 const system36TiePlayer = (name: string, bogeyHoles: number[]) => player(name, scoresWith(Object.fromEntries(bogeyHoles.map((hole) => [hole, 5]))));
-const system36NettAward = (players: ReturnType<typeof player>[], method: "lower-handicap" | "countback") => calculateTournamentWinners([round(1, [player("Gross champion"), ...players])], 1, [], { scoringSystem: "system36", nettTieBreakMethod: method }).awards.find((award) => award.code === "BNO");
+const system36NettAward = (players: ReturnType<typeof player>[], method: "lower-handicap" | "countback") => calculateTournamentWinners([round(1, [player("Gross champion", scoresWith({ 18: 2 })), ...players])], 1, [], { scoringSystem: "system36", nettTieBreakMethod: method }).awards.find((award) => award.code === "BNO");
 
 test("System 36 Nett ties use the selected Tournament HCP36 or Countback method", () => {
   const lowerHcp = system36TiePlayer("Lower HCP36", [10]);
@@ -129,6 +129,14 @@ test("System 36 Nett ties use the selected Tournament HCP36 or Countback method"
   const lowerHcpResult = system36NettAward([lowerHcp, higherHcp], "lower-handicap");
   assert.equal(lowerHcpResult?.winner?.name, "Lower HCP36");
   assert.equal(lowerHcpResult?.countbackStage, "HCP");
+
+  const correctedHcpTie = system36NettAward([
+    player("Birdie only", scoresWith({ 1: 3 })),
+    player("Birdie and bogey", scoresWith({ 1: 3, 2: 5 })),
+  ], "lower-handicap");
+  assert.equal(correctedHcpTie?.winner?.name, "Birdie only");
+  assert.equal(correctedHcpTie?.winner?.averageHcp36, 0, "a Birdie earns two points and leaves HCP36 at zero");
+  assert.equal(correctedHcpTie?.tiedOpponents?.[0]?.averageHcp36, 1, "the tied Birdie-and-bogey card has corrected HCP36 one");
 
   const sameHcpBackNineWorse = system36TiePlayer("Back nine worse", [10]);
   const sameHcpBackNineBetter = system36TiePlayer("Back nine better", [1]);

@@ -31,8 +31,8 @@ test("KBP/JNG historical fixture keeps aliases stable and reproduces the regress
   assert.equal(bno?.winner?.aggregateNett, 142);
   assert.deepEqual(bno?.winner?.roundNett, [72, 70]);
   assert.equal(bno?.countbackStage, "HCP");
-  assert.equal(bno?.winner?.averageHcp36, 10.5);
-  assert.equal(result.eligible.find((player) => player.name === "Elga Sinaga")?.averageHcp36, 15.5);
+  assert.equal(bno?.winner?.averageHcp36, 12);
+  assert.equal(result.eligible.find((player) => player.name === "Elga Sinaga")?.averageHcp36, 16.5);
   assert.deepEqual(bno?.tiedOpponents?.map((player) => player.name), ["Elga Sinaga"]);
 });
 
