@@ -47,7 +47,7 @@ type ResultExportOptions = {
 /** Full selected-round result export. Summaries come only from the normal score engines. */
 export function scoreEntryResultsCsv(players: Player[], pars: number[], options: ResultExportOptions) {
   const handicapMode = options.scoringSystem === "handicap";
-  const includeFlight = handicapMode && options.tournamentFormat === "psgc";
+  const includeFlight = handicapMode && (options.tournamentFormat === "psgc" || options.tournamentFormat === "whs");
   const header = [
     "No",
     "Name",

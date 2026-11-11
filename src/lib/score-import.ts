@@ -47,7 +47,7 @@ function importedHandicap(value: unknown) {
 function importedFlight(value: unknown) {
   const flight = normalizeText(value).toLocaleUpperCase();
   if (!flight) return undefined;
-  return (["A", "B", "C", "SS"] as const).includes(flight as AwardCategory) ? flight as AwardCategory : null;
+  return (["A", "B", "C", "D", "SS"] as const).includes(flight as AwardCategory) ? flight as AwardCategory : null;
 }
 
 function metadataFor(row: unknown[], headers: HeaderIndexes) {
@@ -99,7 +99,7 @@ export function previewScoreImport(rows: unknown[][], players: Player[], mode: S
     if (importedNames.has(normalizedName)) { invalid.push({ rowNumber, name, reason: "Duplicate player in the import file" }); return; }
     const metadata = metadataFor(row, columns);
     if (metadata.handicap === null) { invalid.push({ rowNumber, name, reason: "Handicap must be a non-negative number" }); return; }
-    if (metadata.awardCategory === null) { invalid.push({ rowNumber, name, reason: "Flight must be A, B, C, or SS" }); return; }
+    if (metadata.awardCategory === null) { invalid.push({ rowNumber, name, reason: "Flight must be A, B, C, D, or SS" }); return; }
     if (isFullRoster(mode) && (metadata.handicap === undefined || metadata.awardCategory === undefined || metadata.pairing === undefined)) { invalid.push({ rowNumber, name, reason: "Full Roster + Scores requires Handicap, Flight, and Pairing values" }); return; }
     const importMetadata = {
       ...(metadata.handicap === undefined || metadata.handicap === null ? {} : { handicap: metadata.handicap }),

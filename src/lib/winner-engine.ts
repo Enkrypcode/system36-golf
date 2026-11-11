@@ -1,9 +1,10 @@
 import { handicapScoreSummary, scoreSummary, type AwardMode, type NettTieBreakMethod, type Player, type ScoringSystem, type TournamentFormat } from "./scoring.ts";
+import type { WhsFlightFormat } from "./whs-roster.ts";
 
 export type TournamentRoundScores = { id: number; pars: number[]; players: Player[] };
 export type TournamentPlayer = {
   key: string; name: string; aggregateGross: number; aggregateNett: number; averageHcp36: number;
-  handicap?: number; awardCategory?: "A" | "B" | "C" | "SS";
+  handicap?: number; awardCategory?: "A" | "B" | "C" | "D" | "SS";
   roundGross: number[]; roundNett: number[]; finalScores: number[]; finalHcp36: number; finalHandicap?: number; flight?: string;
 };
 export type TieBreakStage = "HCP" | "HANDICAP" | "CB9" | "CB6" | "CB3" | "CB1";
@@ -13,7 +14,7 @@ export type SplitNineAwardPosition = "Champion" | "Runner Up 1" | "Runner Up 2";
 export type SplitNineCountbackStage = "CB6" | "CB3" | "CB1";
 export type SplitNineResult = { leaderboard: SplitNinePlayer[]; overallAwards: Award[]; firstAwards: Record<string, SplitNineAwardPosition>; secondAwards: Record<string, SplitNineAwardPosition>; firstAwardCountbacks: Record<string, SplitNineCountbackStage>; secondAwardCountbacks: Record<string, SplitNineCountbackStage>; firstChampion?: SplitNinePlayer; firstTied?: SplitNinePlayer[]; secondChampion?: SplitNinePlayer; secondTied?: SplitNinePlayer[] };
 export type WinnerResult = { eligible: TournamentPlayer[]; notEligible: number; flights: Record<string, TournamentPlayer[]>; awards: Award[]; splitNine?: SplitNineResult; validationError?: string };
-export type WinnerOptions = { scoringSystem?: ScoringSystem; tournamentFormat?: TournamentFormat; nettTieBreakMethod?: NettTieBreakMethod; awardMode?: AwardMode; overallAwards?: boolean; additionalNettAwards?: number };
+export type WinnerOptions = { scoringSystem?: ScoringSystem; tournamentFormat?: TournamentFormat; whsFlightFormat?: WhsFlightFormat; nettTieBreakMethod?: NettTieBreakMethod; awardMode?: AwardMode; overallAwards?: boolean; additionalNettAwards?: number };
 
 const keyFor = (player: Player) => player.id || player.name.trim().toLocaleLowerCase();
 const complete = (player: Player) => player.scores.length === 18 && player.scores.every((score) => Number.isInteger(score) && (score as number) >= 1);
@@ -137,12 +138,19 @@ function calculateSplitNine(players: TournamentPlayer[], nettTieBreakMethod: Net
 }
 export function calculateTournamentWinners(rounds: TournamentRoundScores[], flightCount: number, flightLimits: number[] = [], options: WinnerOptions = {}): WinnerResult {
   const scoringSystem = options.scoringSystem ?? "system36";
-  const tournamentFormat = scoringSystem === "handicap" && (options.tournamentFormat === "psgc" || options.tournamentFormat === "split9") ? options.tournamentFormat : "standard";
+  const tournamentFormat = scoringSystem === "handicap" && (options.tournamentFormat === "psgc" || options.tournamentFormat === "split9" || options.tournamentFormat === "whs") ? options.tournamentFormat : "standard";
   const awardMode: AwardMode = tournamentFormat !== "split9" && options.awardMode === "nett-only" ? "nett-only" : "gross-nett";
   const overallAwards = tournamentFormat === "psgc" || options.overallAwards !== false;
   const additionalNettAwards = Math.max(0, Math.min(3, Math.trunc(options.additionalNettAwards ?? (awardMode === "nett-only" && !overallAwards && tournamentFormat === "standard" && flightCount === 0 ? 3 : 0))));
   const nettTieBreakMethod = options.nettTieBreakMethod ?? (scoringSystem === "system36" || tournamentFormat === "psgc" ? "lower-handicap" : "countback");
   if (!rounds.length) return { eligible: [], notEligible: 0, flights: {}, awards: [] };
+  if (tournamentFormat === "whs") {
+    if (options.whsFlightFormat !== "A-C" && options.whsFlightFormat !== "A-D") return { eligible: [], notEligible: 0, flights: {}, awards: [], validationError: "Choose a WHS Flight format before calculating awards." };
+    const allowed = new Set(options.whsFlightFormat === "A-C" ? ["A", "B", "C", "SS"] : ["A", "B", "C", "D", "SS"]);
+    if (rounds.some((round) => round.players.some((player) => !allowed.has(player.awardCategory ?? "") || !Number.isInteger(player.handicap) || (player.handicap ?? -1) < 0 || (player.handicap ?? 73) > 72))) {
+      return { eligible: [], notEligible: 0, flights: {}, awards: [], validationError: "Every WHS player needs an assigned Flight and effective HC in the imported format." };
+    }
+  }
   const entries = new Map<string, Map<number, Player>>();
   for (const round of rounds) for (const player of round.players) {
     const key = keyFor(player); if (!key) continue;
@@ -163,8 +171,11 @@ export function calculateTournamentWinners(rounds: TournamentRoundScores[], flig
   }
   if (tournamentFormat === "split9") return { eligible, notEligible: entries.size - eligible.length, flights: {}, awards: [], splitNine: calculateSplitNine(eligible, nettTieBreakMethod) };
   const flights: Record<string, TournamentPlayer[]> = {};
-  if (tournamentFormat === "psgc") {
-    for (const category of psgcCategories) flights[category] = eligible.filter((player) => player.awardCategory === category).map((player) => ({ ...player, flight: category }));
+  const whsNumericalFlights = options.whsFlightFormat === "A-C" ? ["A", "B", "C"] : ["A", "B", "C", "D"];
+  const whsHasSuperSenior = tournamentFormat === "whs" && rounds.some((round) => round.players.some((player) => player.awardCategory === "SS"));
+  const explicitCategories = tournamentFormat === "psgc" ? [...psgcCategories] : tournamentFormat === "whs" ? [...whsNumericalFlights, ...(whsHasSuperSenior ? ["SS"] : [])] : null;
+  if (explicitCategories) {
+    for (const category of explicitCategories) flights[category] = eligible.filter((player) => player.awardCategory === category).map((player) => ({ ...player, flight: category }));
   } else {
     const flightValue = (player: TournamentPlayer) => scoringSystem === "handicap" ? player.handicap ?? 0 : player.averageHcp36;
     const count = Math.max(0, flightCount);
@@ -193,18 +204,21 @@ export function calculateTournamentWinners(rounds: TournamentRoundScores[], flig
     }
   }
   const standaloneBestNett = tournamentFormat === "standard" && flightCount === 0 && (awardMode === "gross-nett" || !overallAwards);
-  if (standaloneBestNett) for (let index = 1; index <= additionalNettAwards; index++) addAward(`BN ${index}`, `Best Nett ${index}`, available(eligible), "aggregateNett");  if (tournamentFormat === "psgc") {
-    for (const flight of ["A", "B", "C"] as const) {
+  if (standaloneBestNett) for (let index = 1; index <= additionalNettAwards; index++) addAward(`BN ${index}`, `Best Nett ${index}`, available(eligible), "aggregateNett");
+  if (explicitCategories) {
+    for (const flight of tournamentFormat === "psgc" ? ["A", "B", "C"] : whsNumericalFlights) {
       const members = flights[flight] ?? [];
       if (awardMode === "gross-nett") addAward(`BG${flight}`, `Best Gross ${flight}`, available(members), "aggregateGross");
       addAward(`BN 1 ${flight}`, `Best Nett 1 ${flight}`, available(members), "aggregateNett");
       addAward(`BN 2 ${flight}`, `Best Nett 2 ${flight}`, available(members), "aggregateNett");
       if (awardMode === "nett-only") addAward(`BN 3 ${flight}`, `Best Nett 3 ${flight}`, available(members), "aggregateNett");
     }
-    const superSenior = flights.SS ?? [];
-    addAward("BN 1 SS", "Best Nett 1 Super Senior", available(superSenior), "aggregateNett");
-    addAward("BN 2 SS", "Best Nett 2 Super Senior", available(superSenior), "aggregateNett");
-    addAward("BN 3 SS", "Best Nett 3 Super Senior", available(superSenior), "aggregateNett");
+    if (tournamentFormat === "psgc" || whsHasSuperSenior) {
+      const superSenior = flights.SS ?? [];
+      addAward("BN 1 SS", "Best Nett 1 Super Senior", available(superSenior), "aggregateNett");
+      addAward("BN 2 SS", "Best Nett 2 Super Senior", available(superSenior), "aggregateNett");
+      addAward("BN 3 SS", "Best Nett 3 Super Senior", available(superSenior), "aggregateNett");
+    }
   } else {
     for (let index = 0; index < Math.max(0, flightCount); index++) {
       const flight = flightName(index); const members = flights[flight] ?? [];

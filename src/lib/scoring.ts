@@ -5,8 +5,13 @@ export type Player = {
   pairing?: string;
   /** Manually entered tournament/playing handicap, used only in Handicap mode. */
   handicap?: number;
-  /** PSGC award category. It is independent of pairing and Handicap. */
+  /** Explicit competition Flight for PSGC or WHS. Independent of pairing and handicap. */
   awardCategory?: AwardCategory;
+  /** Reference and event-only metadata from a WHS Play Setup roster. */
+  sourcePlayerId?: string;
+  tee?: string;
+  provisionalHandicap?: number;
+  maxHandicapApplied?: boolean;
   /** Optional blind-hole targets; used only by the Jackpot side competition. */
   jackpotTargetFront?: number;
   jackpotTargetBack?: number;
@@ -18,11 +23,11 @@ export type Player = {
 };
 
 export type ScoringSystem = "system36" | "handicap";
-export type TournamentFormat = "standard" | "psgc" | "split9";
+export type TournamentFormat = "standard" | "psgc" | "split9" | "whs";
 export type NettTieBreakMethod = "lower-handicap" | "countback";
 /** Controls which Handicap awards are assigned; it never changes score calculations. */
 export type AwardMode = "gross-nett" | "nett-only";
-export type AwardCategory = "A" | "B" | "C" | "SS";
+export type AwardCategory = "A" | "B" | "C" | "D" | "SS";
 
 export const frontPar = (pars: number[]) => pars.slice(0, 9).reduce((total: number, par: number) => total + par, 0);
 export const backPar = (pars: number[]) => pars.slice(9, 18).reduce((total: number, par: number) => total + par, 0);
