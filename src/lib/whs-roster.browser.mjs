@@ -155,6 +155,37 @@ try {
   assert.equal(await evaluate(`JSON.stringify(JSON.parse(localStorage.getItem('system36:tournament:v1')).tournamentScores[1].map(({pairing,...player}) => player))`), beforePairingImport);
   await call("Page.reload");
   await waitFor(`document.querySelector('.pairing-cell input')?.value === '8B'`);
+  await evaluate(`Array.from(document.querySelectorAll('.score-sort-controls button')).find(b => b.textContent === 'Flight').click()`);
+  await evaluate(`Array.from(document.querySelectorAll('.score-sort-controls button')).find(b => b.textContent.startsWith('Flight')).click()`);
+  await waitFor(`document.querySelector('.player-name input')?.value !== 'Browser Player 0'`);
+  await setInput('.player-search input', "Browser Player 0");
+  await evaluate(`(() => { const select = document.querySelector('.pairing-filter select'); select.value = '8B'; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  await waitFor(`document.querySelectorAll('.score-table tbody tr').length === 1`);
+  await evaluate(`document.querySelector('.score-export-button').click()`);
+  const exported = await evaluate(`(async () => {
+    const originalCreate = URL.createObjectURL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    let csv, filename;
+    URL.createObjectURL = (blob) => { csv = blob.text(); return 'blob:full-export-test'; };
+    HTMLAnchorElement.prototype.click = function () { filename = this.download; };
+    try {
+      Array.from(document.querySelectorAll('.score-export-options button')).find(b => b.textContent === 'Full Export').click();
+      return { csv: await csv, filename };
+    } finally {
+      URL.createObjectURL = originalCreate;
+      HTMLAnchorElement.prototype.click = originalClick;
+    }
+  })()`);
+  const fullRows = exported.csv.replace(/^\uFEFF/, "").split("\r\n").map(row => row.split(","));
+  assert.equal(fullRows.length, 73, "Full Export includes the underlying 72-player roster despite filters");
+  assert.ok(fullRows.every(row => row.length === 25), "Pairing and each hole occupy separate columns");
+  assert.deepEqual(fullRows.slice(1).map(row => row[1]), roster.players.map(player => player.name), "Full Export follows roster order despite Flight sorting");
+  assert.equal(fullRows[1][6], "8B");
+  assert.equal(exported.filename, "Browser-Cup-Round-1-Full.csv");
+  await setInput('.player-search input', "");
+  await evaluate(`(() => { const select = document.querySelector('.pairing-filter select'); select.value = ''; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  await evaluate(`Array.from(document.querySelectorAll('.score-sort-controls button')).find(b => b.textContent === 'Original').click()`);
+  await waitFor(`document.querySelectorAll('.score-table tbody tr').length === 72`);
   for (const width of [1440, 1024, 768, 390]) {
     await call("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false });
     const reachable = await evaluate(`(() => {

@@ -39,6 +39,26 @@ export function scoreEntryScoresFilename(tournamentName: string, roundNumber: nu
   return `${filenameBase(tournamentName)}-Round-${roundNumber}-Scores.csv`;
 }
 
+/** Editable input values from every player in the selected round's roster order. */
+export function scoreEntryFullCsv(players: Player[]) {
+  const header = ["No", "Player Name", "Handicap", "Flight", "Target 1–9", "Target 10–18", "Pairing", ...scoreColumns];
+  const rows = players.map((player, index) => [
+    index + 1,
+    player.name,
+    player.handicap ?? "",
+    player.awardCategory ?? "",
+    player.jackpotTargetFront ?? "",
+    player.jackpotTargetBack ?? "",
+    player.pairing ?? "",
+    ...Array.from({ length: 18 }, (_, hole) => player.scores[hole] ?? ""),
+  ]);
+  return `\uFEFF${header.join(",")}\r\n${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
+}
+
+export function scoreEntryFullFilename(tournamentName: string, roundNumber: number) {
+  return `${filenameBase(tournamentName)}-Round-${roundNumber}-Full.csv`;
+}
+
 type ResultExportOptions = {
   scoringSystem: ScoringSystem;
   tournamentFormat: TournamentFormat;

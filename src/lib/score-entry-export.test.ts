@@ -1,9 +1,33 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { scoreEntryFullCsv, scoreEntryFullFilename } from "./score-entry-export.ts";
+import { parseCsv } from "./score-import.ts";
+import type { Player } from "./scoring.ts";
 
 import { scoreEntryGrossCsv, scoreEntryGrossFilename, scoreEntryResultsCsv, scoreEntryResultsFilename, scoreEntryScoresCsv, scoreEntryScoresFilename } from "./score-entry-export.ts";
 
 const pars = Array<number>(18).fill(4);
+
+test("Full Export retains every roster player and exactly the editable input columns", () => {
+  const roster: Player[] = [
+    { id: "z", name: 'ZAIDY, "PSGC"', handicap: 9.5, awardCategory: "D", jackpotTargetFront: 40.5, jackpotTargetBack: 42, pairing: "7A", scores: Array.from({ length: 18 }, (_, hole) => hole % 8 + 1) },
+    { id: "a", name: "INCOMPLETE", handicap: 0, awardCategory: "SS", jackpotTargetFront: 0, jackpotTargetBack: 45, pairing: "2B", scores: [5, ...Array(17).fill(null)] },
+    { id: "blank", name: "NO SCORES", scores: Array(18).fill(null) },
+  ];
+  const csv = scoreEntryFullCsv(roster);
+  assert.ok(csv.startsWith("\uFEFF"));
+  const [header, first, incomplete, blank] = parseCsv(csv);
+  assert.deepEqual(header.map((cell) => cell.replace(/^\uFEFF/, "")), [
+    "No", "Player Name", "Handicap", "Flight", "Target 1–9", "Target 10–18", "Pairing",
+    ...Array.from({ length: 18 }, (_, hole) => `H${hole + 1}`),
+  ]);
+  assert.equal(header.length, 25);
+  assert.deepEqual(first, ["1", roster[0].name, "9.5", "D", "40.5", "42", "7A", ...roster[0].scores.map(String)]);
+  assert.deepEqual(incomplete, ["2", "INCOMPLETE", "0", "SS", "0", "45", "2B", "5", ...Array(17).fill("")]);
+  assert.deepEqual(blank, ["3", "NO SCORES", ...Array(23).fill("")]);
+  assert.equal(parseCsv(csv).length, roster.length + 1);
+  assert.equal(scoreEntryFullFilename("GOBAR PSGC 17 November 2026", 1), "GOBAR-PSGC-17-November-2026-Round-1-Full.csv");
+});
 
 const completePlayer = (name: string, gross: number) => ({
   id: name,
