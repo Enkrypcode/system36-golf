@@ -66,6 +66,44 @@ try {
   await waitFor(`document.querySelector('.round-setup-list input[readonly]')?.value === '72' && !document.querySelector('.step-action .primary-button').disabled`);
   await evaluate(`document.querySelector('.step-action .primary-button').click()`);
   await waitFor(`document.querySelectorAll('.score-table tbody tr').length === 72`);
+  const scoreFile = path.join(profile, "scores.csv");
+  await writeFile(scoreFile, "Name," + Array.from({ length: 18 }, (_, i) => "H" + (i + 1)).join(",") + "\n" + Array.from({length:69},(_,i)=>"Unknown Player With A Long Name " + i + "," + Array(18).fill(i%2 ? "bad" : 4).join(",")).join("\n"));
+  await call("Page.setInterceptFileChooserDialog", { enabled: true });
+  for (const [width, height, scrolled] of [[1440,900,false], [1440,900,true], [1024,768,true], [768,1024,true], [960,600,true], [390,650,true]]) {
+    await call("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
+    await evaluate(`(() => {
+      const wrap = document.querySelector('.simple-score-table-wrap');
+      wrap.scrollTop = ${scrolled ? 600 : 0};
+      wrap.scrollLeft = ${scrolled ? 700 : 0};
+      document.querySelector('.score-import-button').focus({preventScroll:true});
+      document.querySelector('.score-import-button').click();
+    })()`);
+    const scoreDocument = await call("DOM.getDocument");
+    const scoreInput = await call("DOM.querySelector", { nodeId: scoreDocument.root.nodeId, selector: ".score-import-input" });
+    await call("DOM.setFileInputFiles", { nodeId: scoreInput.nodeId, files: [scoreFile] });
+    await waitFor(`!!document.querySelector('.score-import-dialog:modal')`);
+    const geometry = await evaluate(`(() => {
+      const dialog = document.querySelector('.score-import-dialog');
+      const rect = dialog.getBoundingClientRect();
+      return {
+        inBody: dialog.parentElement === document.body,
+        visible: rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight,
+        centered: Math.abs(rect.left + rect.width / 2 - document.documentElement.clientWidth / 2) < 2 && Math.abs(rect.top + rect.height / 2 - document.documentElement.clientHeight / 2) < 2,
+        onTop: !!document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)?.closest('.score-import-dialog'),
+        noOverflow: dialog.scrollWidth <= dialog.clientWidth + 1,
+        focusInside: dialog.contains(document.activeElement),
+        issueLayout: getComputedStyle(dialog.querySelector('.score-import-issues')).display,
+      };
+    })()`);
+    assert.deepEqual(geometry, { inBody:true, visible:true, centered:true, onTop:true, noOverflow:true, focusInside:true, issueLayout:"grid" }, `Import modal at ${width}x${height}, scrolled=${scrolled}`);
+    if (scrolled) {
+      await call("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+      await call("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+    } else await evaluate(`document.querySelector('.score-import-dialog .secondary-button').click()`);
+    await waitFor(`!document.querySelector('.score-import-dialog') && !document.querySelector('.reset-backdrop') && !document.querySelector('dialog:modal')`);
+  }
+  await call("Page.setInterceptFileChooserDialog", { enabled: false });
+  await call("Emulation.clearDeviceMetricsOverride");
   const setInput = async (selector, value) => {
     await evaluate(`(() => {
       const input = document.querySelector(${JSON.stringify(selector)});
@@ -234,7 +272,7 @@ try {
   assert.equal(await evaluate(`document.querySelector('.tournament-summary-panel').textContent.includes('Super Senior')`), true);
   assert.equal(await evaluate(`document.querySelector('.winner-results').textContent.includes('BGD')`), true);
   assert.equal(await evaluate(`document.querySelector('.winner-results').textContent.includes('BN 1 SS')`), true);
-  console.log("PASS browser: Pairing Builder autosave, empty groups after refresh, CSV preview/cancel, XLSX apply, metadata preservation, filters/sorting, responsive layout, WHS import and Winners");
+  console.log("PASS browser: Import modal centered above content at six viewport/scroll configurations, Cancel/Escape cleanup, pairing/import/export regressions, WHS and Winners");
 } finally {
   socket?.close(); chrome.kill(); server.kill();
   await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
