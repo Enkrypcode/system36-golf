@@ -292,6 +292,24 @@ try {
   assert.equal(await evaluate(`document.querySelector('.tournament-summary-panel').textContent.includes('Super Senior')`), true);
   assert.equal(await evaluate(`document.querySelector('.winner-results').textContent.includes('BGD')`), true);
   assert.equal(await evaluate(`document.querySelector('.winner-results').textContent.includes('BN 1 SS')`), true);
+  const winnersPdf = await evaluate(`(async () => {
+    const originalCreate = URL.createObjectURL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    let data;
+    let resolveDownload;
+    const downloaded = new Promise(resolve => { resolveDownload = resolve; });
+    URL.createObjectURL = blob => { data = blob.arrayBuffer(); return 'blob:winners-pdf-test'; };
+    HTMLAnchorElement.prototype.click = function () { resolveDownload(this.download); };
+    try {
+      Array.from(document.querySelectorAll('.winner-export-actions button')).find(button => button.textContent === 'Save as PDF').click();
+      const filename = await downloaded;
+      const bytes = new Uint8Array(await data);
+      return { filename, size: bytes.length, header: new TextDecoder().decode(bytes.slice(0,5)) };
+    } finally { URL.createObjectURL = originalCreate; HTMLAnchorElement.prototype.click = originalClick; }
+  })()`);
+  assert.equal(winnersPdf.filename, "Browser-Cup-Winners.pdf");
+  assert.equal(winnersPdf.header, "%PDF-");
+  assert.ok(winnersPdf.size > 1000);
   console.log("PASS browser: Import modal centered above content at six viewport/scroll configurations, Cancel/Escape cleanup, pairing/import/export regressions, WHS and Winners");
 } finally {
   socket?.close(); chrome.kill(); server.kill();

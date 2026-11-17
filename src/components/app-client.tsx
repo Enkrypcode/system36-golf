@@ -13,6 +13,7 @@ import { loadKbpJngTestFixture } from "@/lib/real-test-fixture";
 import { loadPsgcRancamayaFixture, PSGC_FIXTURE_NAME, PSGC_SOURCE_NOTE } from "@/lib/psgc-rancamaya-fixture";
 import { loadGobarHendraSplitNineFixture } from "@/lib/gobar-hendra-jaya-split9-fixture";
 import { exportFilename, tournamentResultsCsv } from "@/lib/winner-export";
+import { winnerPdfFilename } from "@/lib/winner-pdf-model";
 import { synchronizeRoundPlayerCounts } from "@/lib/player-removal";
 import { parseWhsRoster, rosterPlayers, whsImportDecision, type WhsFlightFormat, type WhsRoster } from "@/lib/whs-roster";
 import { blankNovelty, noveltyText, noveltyTypes, type NoveltyEntry, type NoveltyType } from "@/lib/novelties";
@@ -78,6 +79,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
   const [selectedDataset, setSelectedDataset] = useState<HistoricalDataset | null>(null);
   const [scoreEntryRevision, setScoreEntryRevision] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
+  const [isSavingPdf, setIsSavingPdf] = useState(false);
   const [exportError, setExportError] = useState("");
   const [exportTimestamp, setExportTimestamp] = useState("");
   const restoreTimerRef = useRef<number | null>(null);
@@ -375,6 +377,29 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
       setExportError("Could not create the Winners image. Please try again.");
     } finally { setIsExporting(false); }
   };
+  const saveWinnersPdf = async () => {
+    if (isSavingPdf) return;
+    setIsSavingPdf(true);
+    setExportError("");
+    try {
+      const { createWinnersPdf } = await import("@/lib/winner-pdf");
+      const pdf = createWinnersPdf({
+        name, rounds: roundSummary, scoringSystem, tournamentFormat, awardSections, result: winnerResult,
+        ...(jackpot.enabled ? { jackpot: {
+          label: jackpotModeLabel,
+          detail: jackpot.revealed ? `Blind holes: ${jackpot.blindHoles.map((hole) => "H" + hole).join(" · ")}` : jackpot.locked ? "4 Blind Holes Locked" : "Blind Hole setup pending lock",
+          champions: [jackpotChampionText(jackpotFrontResults), jackpotChampionText(jackpotBackResults)] as [string, string],
+          front: jackpotFrontResults, back: jackpotBackResults,
+        } } : {}),
+        novelties: completedNovelties.map((novelty) => noveltyText(novelty, noveltyPlayerNames.get(novelty.playerId)!)),
+      });
+      download(URL.createObjectURL(pdf.output("blob")), winnerPdfFilename(name));
+    } catch {
+      setExportError("Could not create the Winners PDF. Please try again.");
+    } finally {
+      setIsSavingPdf(false);
+    }
+  };
 
   return <main className="simple-tool">
     {showWelcome && <section className="welcome-splash" aria-label="EnkrypScore — Golf Scoring System"><div className="welcome-mark"><Image src="/golf-scoring-icon.png" alt="" width={116} height={116} priority /></div><strong>EnkrypScore</strong><span>Golf Scoring System</span><small>Designed &amp; Built by Fikri · AI-assisted</small></section>}<header className="simple-header"><div className="simple-brand"><Image src="/golf-scoring-icon.png" alt="" width={38} height={38} priority /><span><strong>EnkrypScore</strong><small>Golf Scoring System</small></span></div><div className="stepper">{([1, 2, 3] as Step[]).map((item) => <span className={step === item ? "active" : step > item ? "done" : ""} key={item}><b>{item}</b>{item === 1 ? "Tournament" : item === 2 ? "Score Entry" : "Winners"}</span>)}</div><span className={`autosave-status ${saveStatus}`} role="status">{saveStatus === "saving" ? "Saving..." : saveStatus === "failed" ? "Save failed" : "✓ Saved"}</span>{isAdmin ? <><button className="load-data-button" type="button" onClick={() => setShowLoadDataDialog(true)}>Load Data</button><button className="admin-mode-button" type="button" onClick={() => void lockAdmin()}>Lock Admin</button></> : <button className="admin-mode-button" type="button" onClick={() => { setAdminError(""); setShowAdminDialog(true); }}>Admin</button>}<button className="new-tournament-button" type="button" onClick={() => setShowResetDialog(true)}>New Tournament</button></header>
@@ -396,7 +421,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
       </section>}
       {step === 2 && <>{fixtureLoadNotice && !psgcSourceNoteDismissed && <div className="fixture-load-notice" role="status"><span>{fixtureLoadNotice}</span><button type="button" aria-label="Dismiss source note" title="Dismiss source note" onClick={() => { setPsgcSourceNoteDismissed(true); try { window.localStorage.setItem(PSGC_SOURCE_NOTE_DISMISSED_KEY, "dismissed"); } catch { /* Dismissal still applies for this session. */ } }}>×</button></div>}<ScoreEntry key={scoreEntryRevision} tournamentName={name} rounds={rounds} courses={courseById} savedScores={tournamentScores} pairingGroups={pairingGroups} onPairingGroupsChange={(roundId, codes) => { setSaveStatus("saving"); setPairingGroups((current) => ({ ...current, [roundId]: codes })); }} saveStatus={saveStatus} scoringSystem={scoringSystem} tournamentFormat={tournamentFormat} jackpotEnabled={jackpot.enabled} jackpotMode={jackpot.mode} jackpotBlindHoles={jackpot.revealed ? jackpot.blindHoles : []} jackpotRevealed={jackpot.revealed} onScoresChange={updateTournamentScores} onHandicapChange={(playerId, handicap) => setTournamentScores((current) => Object.fromEntries(Object.entries(current).map(([round, players]) => [round, players.map((player) => player.id === playerId ? { ...player, handicap } : player)])))} onBack={() => setStep(1)} onContinue={(scores) => { updateTournamentScores(scores); setStep(3); }} /></>}
       {step === 3 && <section className="awards-step">
-        <div className="awards-page-header"><div className="step-intro"><p>STEP 3</p><h1>Winners & awards</h1><span>Only players with a complete scorecard in every round are eligible for final awards.</span></div><div className="winner-export-actions"><button className="secondary-button" type="button" disabled={isExporting} onClick={saveWinnersImage}>{isExporting ? "Saving…" : "Save as Image"}</button><button className="secondary-button" type="button" onClick={exportResultsCsv}>Export Awards CSV</button></div></div>
+        <div className="awards-page-header"><div className="step-intro"><p>STEP 3</p><h1>Winners & awards</h1><span>Only players with a complete scorecard in every round are eligible for final awards.</span></div><div className="winner-export-actions"><button className="secondary-button" type="button" disabled={isExporting} onClick={saveWinnersImage}>{isExporting ? "Saving…" : "Save as Image"}</button><button className="secondary-button" type="button" disabled={isSavingPdf} onClick={saveWinnersPdf}>{isSavingPdf ? "Saving PDF…" : "Save as PDF"}</button><button className="secondary-button" type="button" onClick={exportResultsCsv}>Export Awards CSV</button></div></div>
         {exportError && <p className="validation-error">{exportError}</p>}
         {splitNineMode ? <section className="split-nine-results">
           <div className="split-nine-heading"><p>Dedicated Handicap competition</p><h2>Split 9-Hole Results</h2><span>Overall awards are assigned before the two nine-hole leaderboards. ½ Handicap is applied separately to each nine.</span></div>
