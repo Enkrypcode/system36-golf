@@ -104,6 +104,26 @@ try {
   }
   await call("Page.setInterceptFileChooserDialog", { enabled: false });
   await call("Emulation.clearDeviceMetricsOverride");
+  const fullBackupFile = path.join(profile, "full-backup.csv");
+  const fullBackupRows = [
+    ["Player Name", "Target 1–9", "Target 10–18", ...Array.from({ length: 18 }, (_, i) => "H" + (i + 1))],
+    ["Browser Player 0", 40, 41, ...Array(18).fill("")],
+    ["Browser Player 1", 42.5, 43, ...Array(9).fill(4), ...Array(9).fill("")],
+    ["Browser Player 2", "", "", ...Array(18).fill(4)],
+  ];
+  await writeFile(fullBackupFile, fullBackupRows.map(row => row.join(",")).join("\r\n"));
+  await evaluate(`(() => { const select = document.querySelector('[aria-label="Score import mode"]'); select.value = 'full-roster-scores'; select.dispatchEvent(new Event('change', {bubbles:true})); })()`);
+  const backupDocument = await call("DOM.getDocument");
+  const backupInput = await call("DOM.querySelector", { nodeId: backupDocument.root.nodeId, selector: ".score-import-input" });
+  await call("DOM.setFileInputFiles", { nodeId: backupInput.nodeId, files: [fullBackupFile] });
+  await waitFor(`document.querySelector('.score-import-dialog .score-import-summary')?.textContent.includes('3 matched')`);
+  assert.equal(await evaluate(`document.querySelector('.score-import-summary').textContent.includes('0 invalid')`), true);
+  await evaluate(`document.querySelector('.score-import-dialog .primary-button').click()`);
+  await waitFor(`!document.querySelector('.score-import-dialog')`);
+  assert.deepEqual(await evaluate(`Array.from(document.querySelectorAll('.score-table tbody tr')).slice(0,3).map(row => Array.from(row.querySelectorAll('.summary-cell')).map(cell => cell.textContent))`),
+    [["—","—","—","—"], ["36","—","—","—"], ["36","36","72","70"]]);
+  await waitFor(`JSON.parse(localStorage.getItem('system36:tournament:v1')).tournamentScores[1][0].jackpotTargetFront === 40`);
+  assert.equal(await evaluate(`JSON.parse(localStorage.getItem('system36:tournament:v1')).tournamentScores[1][1].scores[17]`), null);
   const setInput = async (selector, value) => {
     await evaluate(`(() => {
       const input = document.querySelector(${JSON.stringify(selector)});

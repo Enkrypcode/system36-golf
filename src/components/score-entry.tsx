@@ -27,7 +27,7 @@ const flightOrder: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, SS: 4 };
 const scoreImportModeDescription: Record<ScoreImportMode, string> = {
   "players-only": "Imports a roster and any supplied Handicap, Flight, or Pairing values without changing scorecards.",
   "players-scores": "Imports Name plus H1–H18, creating players that are not already in this round.",
-  "full-roster-scores": "Imports Name, Handicap, Flight, Pairing, and H1–H18 for a complete roster.",
+  "full-roster-scores": "Imports Name, optional Handicap, Flight, Targets and Pairing, and H1–H18. Blank holes are unplayed.",
 };
 
 type PendingRemoval = { id: string; name: string; hasScores: boolean; scope: "round" | "tournament" };
@@ -218,7 +218,7 @@ export function ScoreEntry({ tournamentName, rounds, courses, savedScores, scori
   };
   const confirmScoreImport = () => {
     if (!scoreImportPreview?.entries.length) return;
-    const importedHandicaps = new Map(scoreImportPreview.entries.filter((entry) => entry.playerId && entry.handicap !== undefined).map((entry) => [entry.playerId!, entry.handicap!]));
+    const importedHandicaps = new Map(scoreImportPreview.entries.filter((entry) => entry.playerId && Object.hasOwn(entry, "handicap")).map((entry) => [entry.playerId!, entry.handicap]));
     setScoresByRound((current) => {
       const activePlayers = applyScoreImport(current[activeRound.id] ?? [], scoreImportPreview.entries, { createPlayerId: (_entry, index) => `import-player-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}` });
       return Object.fromEntries(Object.entries(current).map(([round, roundPlayers]) => [Number(round), Number(round) === activeRound.id ? activePlayers : roundPlayers.map((player) => importedHandicaps.has(player.id) ? { ...player, handicap: importedHandicaps.get(player.id) } : player)]));

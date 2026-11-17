@@ -5,6 +5,7 @@ import { readSheet } from "read-excel-file/node";
 import { applyScoreImport, previewScoreImport, previewScoreImportFile } from "./score-import.ts";
 import { handicapScoreSummary, scoreSummary, type Player } from "./scoring.ts";
 import { parseSavedTournament, serializeTournament, type SavedTournament } from "./tournament-storage.ts";
+import { scoreEntryFullCsv, scoreEntryResultsCsv } from "./score-entry-export.ts";
 
 const players: Player[] = [
   { id: "fikri", name: "Fikri", pairing: "1A", scores: Array(18).fill(null) },
@@ -112,9 +113,70 @@ test("Full Roster + Scores imports metadata and scores while ignoring derived co
   assert.equal(scoreSummary(updated[0].scores, Array(18).fill(4)).gross, 72, "derived columns in the source are ignored");
 });
 
-test("Full Roster + Scores requires all roster and score headers", () => {
+test("Full Roster + Scores accepts optional metadata and still checks Name and hole headers", () => {
   const missingMetadata = previewScoreImport([["Name", ...holeHeaders], ["Fikri", ...validScores]], players, "full-roster-scores");
-  assert.match(missingMetadata.headerError ?? "", /Handicap/);
+  assert.equal(missingMetadata.headerError, undefined);
+  assert.equal(missingMetadata.entries.length, 1);
+  assert.match(previewScoreImport([holeHeaders, validScores], players, "full-roster-scores").headerError ?? "", /Name/);
   const missingScores = previewScoreImport([["Name", "Handicap", "Flight", "Pairing"], ["Fikri", 9, "A", "1A"]], players, "full-roster-scores");
   assert.match(missingScores.headerError ?? "", /H1–H18/);
+});
+
+test("Full Roster + Scores accepts all blank holes and preserves them as unplayed", () => {
+  const preview = previewScoreImport([fullHeaders, ["Kukuh", "", "", "", ...Array(18).fill("")]], players, "full-roster-scores");
+  assert.equal(preview.invalid.length, 0);
+  assert.equal(preview.entries.length, 1);
+  const updated = applyScoreImport(players, preview.entries);
+  assert.deepEqual(updated[1].scores, Array(18).fill(null));
+  assert.equal(updated[1].handicap, undefined);
+  assert.equal(updated[1].awardCategory, undefined);
+  assert.equal(updated[1].pairing, "");
+  assert.equal(preview.replacementCount, 1);
+});
+
+test("Full Roster + Scores supports partial and complete cards with per-hole validation", () => {
+  for (const scores of [[4, "", 5, null, ...Array(14).fill(" ")], validScores]) {
+    const preview = previewScoreImport([fullHeaders, ["Fikri", 9, "A", "1A", ...scores]], players, "full-roster-scores");
+    assert.equal(preview.invalid.length, 0);
+    assert.deepEqual(applyScoreImport(players, preview.entries)[0].scores, scores.map((score) => typeof score === "number" ? score : null));
+  }
+  for (const invalid of ["bad", 0, 16, -1, 4.5]) {
+    const preview = previewScoreImport([fullHeaders, ["Fikri", 9, "A", "1A", ...Array(17).fill(""), invalid]], players, "full-roster-scores");
+    assert.equal(preview.invalid.length, 1);
+    assert.equal(preview.entries.length, 0);
+    assert.match(preview.invalid[0].reason, /whole numbers from 1 to 15/);
+    assert.deepEqual(applyScoreImport(players, preview.entries), players);
+  }
+});
+
+test("Full Export imports back with targets and incomplete scores through normal persistence", async () => {
+  const source: Player[] = [
+    { id: "a", name: "Unplayed", handicap: 0, awardCategory: "D", pairing: "7A", jackpotTargetFront: 0, jackpotTargetBack: 42.5, scores: Array(18).fill(null) },
+    { id: "b", name: "Partial", handicap: 9.5, awardCategory: "A", pairing: "2B", jackpotTargetFront: 40, jackpotTargetBack: 43, scores: [...Array(9).fill(4), ...Array(9).fill(null)] },
+    { id: "c", name: "Complete", handicap: 12, awardCategory: "SS", scores: validScores },
+  ];
+  const preview = await previewScoreImportFile(new File([scoreEntryFullCsv(source)], "backup.csv"), [], "full-roster-scores");
+  assert.equal(preview.invalid.length, 0);
+  assert.equal(preview.newPlayerCount, 3);
+  const restored = applyScoreImport([], preview.entries, { createPlayerId: (_entry, index) => source[index].id });
+  source.forEach((player, index) => {
+    assert.deepEqual(restored[index].scores, player.scores);
+    assert.equal(restored[index].handicap, player.handicap);
+    assert.equal(restored[index].awardCategory, player.awardCategory);
+    assert.equal(restored[index].pairing ?? "", player.pairing ?? "");
+    assert.equal(restored[index].jackpotTargetFront, player.jackpotTargetFront);
+    assert.equal(restored[index].jackpotTargetBack, player.jackpotTargetBack);
+  });
+  for (const scoringSystem of ["handicap", "system36"] as const) {
+    const resultRows = scoreEntryResultsCsv(restored, Array(18).fill(4), { scoringSystem, tournamentFormat: "standard" }).split("\r\n");
+    const derivedCount = scoringSystem === "handicap" ? 4 : 6;
+    assert.deepEqual(resultRows[1].split(",").slice(-derivedCount), Array(derivedCount).fill(""));
+    assert.deepEqual(resultRows[2].split(",").slice(-derivedCount), Array(derivedCount).fill(""));
+    assert.ok(resultRows[3].split(",").slice(-derivedCount).every((cell) => cell !== ""));
+  }
+  const saved = parseSavedTournament(serializeTournament({
+    version: 1, step: 2, name: "Backup", roundCount: 1, rounds: [{ id: 1, courseId: 1, players: 3 }],
+    tournamentScores: { 1: restored }, flights: 0, flightLimits: [],
+  }));
+  assert.deepEqual(saved?.tournamentScores[1], JSON.parse(JSON.stringify(restored)), "serialization omits undefined optional fields while preserving all input values");
 });
