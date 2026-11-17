@@ -56,6 +56,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
   const [flightLimits, setFlightLimits] = useState<number[]>([12]);
   const [expandedFlights, setExpandedFlights] = useState<Record<string, boolean>>({});
   const [tournamentScores, setTournamentScores] = useState<Record<number, Player[]>>({});
+  const [pairingGroups, setPairingGroups] = useState<Record<number, string[]>>({});
   const [novelties, setNovelties] = useState<NoveltyEntry[]>([]);
   const [jackpot, setJackpot] = useState<JackpotSettings>(defaultJackpotSettings);
   const [showJackpotRevealConfirm, setShowJackpotRevealConfirm] = useState(false);
@@ -179,6 +180,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
         setRoundCount(saved.roundCount);
         setRounds(synchronizeRoundPlayerCounts(restoredRounds, saved.tournamentScores));
         setTournamentScores(saved.tournamentScores);
+        setPairingGroups(saved.pairingGroups ?? {});
         setNovelties(saved.novelties ?? []);
         setJackpot(saved.jackpot ?? defaultJackpotSettings());
         setOverallAwards(saved.overallAwards ?? true); setAdditionalNettAwards(saved.additionalNettAwards ?? 0); setFlights(saved.flights);
@@ -196,12 +198,20 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
 
   useEffect(() => {
     if (!storageReady || !hasTournamentData) return;
-    const timeout = window.setTimeout(() => {
-      const saved: SavedTournament = { version: 1, step, name, playDate, sourceCourse, ...(whsFlightFormat ? { whsFlightFormat } : {}), roundCount, rounds, tournamentScores, flights, flightLimits, overallAwards, additionalNettAwards, scoringSystem, tournamentFormat, awardMode, system36AwardMode, handicapAwardMode, nettTieBreakMethod, system36NettTieBreakMethod, handicapNettTieBreakMethod, novelties, jackpot };
+    const save = () => {
+      const saved: SavedTournament = { version: 1, step, name, playDate, sourceCourse, ...(whsFlightFormat ? { whsFlightFormat } : {}), roundCount, rounds, tournamentScores, pairingGroups, flights, flightLimits, overallAwards, additionalNettAwards, scoringSystem, tournamentFormat, awardMode, system36AwardMode, handicapAwardMode, nettTieBreakMethod, system36NettTieBreakMethod, handicapNettTieBreakMethod, novelties, jackpot };
       try { window.localStorage.setItem(TOURNAMENT_STORAGE_KEY, serializeTournament(saved)); setSaveStatus("saved"); } catch { setSaveStatus("failed"); }
-    }, 300);
-    return () => window.clearTimeout(timeout);
-  }, [flightLimits, flights, overallAwards, additionalNettAwards, hasTournamentData, name, playDate, sourceCourse, whsFlightFormat, roundCount, rounds, scoringSystem, step, storageReady, tournamentFormat, awardMode, system36AwardMode, handicapAwardMode, nettTieBreakMethod, system36NettTieBreakMethod, handicapNettTieBreakMethod, tournamentScores, novelties, jackpot]);
+    };
+    const timeout = window.setTimeout(save, 300);
+    const saveWhenHidden = () => { if (document.visibilityState === "hidden") save(); };
+    window.addEventListener("pagehide", save);
+    document.addEventListener("visibilitychange", saveWhenHidden);
+    return () => {
+      window.clearTimeout(timeout);
+      window.removeEventListener("pagehide", save);
+      document.removeEventListener("visibilitychange", saveWhenHidden);
+    };
+  }, [flightLimits, flights, overallAwards, additionalNettAwards, hasTournamentData, name, playDate, sourceCourse, whsFlightFormat, roundCount, rounds, scoringSystem, step, storageReady, tournamentFormat, awardMode, system36AwardMode, handicapAwardMode, nettTieBreakMethod, system36NettTieBreakMethod, handicapNettTieBreakMethod, tournamentScores, pairingGroups, novelties, jackpot]);
 
   const startNewTournament = () => {
     if (resetting) return;
@@ -217,6 +227,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
     setRoundCount(1);
     setRounds([blankRound(1)]);
     setTournamentScores({});
+    setPairingGroups({});
     setNovelties([]);
     setJackpot(defaultJackpotSettings());
     setScoringSystem("system36");
@@ -247,7 +258,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
     const imported = rosterPlayers(whsPreview);
     setName(whsPreview.tournamentName); setPlayDate(whsPreview.playDate); setSourceCourse(whsPreview.course); setWhsFlightFormat(whsPreview.flightFormat);
     setRoundCount(1); setRounds([{ id: 1, courseId: matchingWhsCourse?.id ?? null, players: imported.length }]);
-    setTournamentScores({ 1: imported }); setScoringSystem("handicap"); setTournamentFormat("whs");
+    setTournamentScores({ 1: imported }); setScoringSystem("handicap"); setTournamentFormat("whs"); setPairingGroups({});
     setFlights(0); setFlightLimits([]); setNovelties([]); setJackpot(defaultJackpotSettings());
     setStep(1); setWhsPreview(null); setScoreEntryRevision((current) => current + 1);
   };
@@ -269,7 +280,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
     beginFixtureLoad();
     const fixture = loadKbpJngTestFixture(courses);
     if (!fixture) { setFixtureLoadError("Historical data could not be matched to the local course catalog."); return; }
-    setName(fixture.name); setRoundCount(fixture.rounds.length); setRounds(fixture.rounds); setTournamentScores(fixture.scores); setNovelties([]); setJackpot(defaultJackpotSettings());
+    setName(fixture.name); setRoundCount(fixture.rounds.length); setRounds(fixture.rounds); setTournamentScores(fixture.scores); setNovelties([]); setJackpot(defaultJackpotSettings()); setPairingGroups({});
     setScoringSystem("system36"); setTournamentFormat("standard"); setSystem36AwardMode("gross-nett"); setHandicapAwardMode("gross-nett"); setSystem36NettTieBreakMethod("lower-handicap"); setHandicapNettTieBreakMethod("countback"); setOverallAwards(true); setAdditionalNettAwards(0); setFlights(2); setFlightLimits([12]); setExpandedFlights({});
     setFixtureLoadError(""); setFixtureLoadNotice(""); finishFixtureLoad();
   };
@@ -277,7 +288,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
     beginFixtureLoad();
     const fixture = loadPsgcRancamayaFixture(courses);
     if (!fixture) { setFixtureLoadError("Rancamaya could not be matched to a valid local course with complete PAR data."); return; }
-    setName(fixture.name); setRoundCount(1); setRounds(fixture.rounds); setTournamentScores(fixture.scores); setNovelties([]); setJackpot(defaultJackpotSettings());
+    setName(fixture.name); setRoundCount(1); setRounds(fixture.rounds); setTournamentScores(fixture.scores); setNovelties([]); setJackpot(defaultJackpotSettings()); setPairingGroups({});
     setScoringSystem("handicap"); setTournamentFormat("psgc"); setSystem36AwardMode("gross-nett"); setHandicapAwardMode("gross-nett"); setHandicapNettTieBreakMethod("lower-handicap"); setAdditionalNettAwards(0); setFlights(3); setFlightLimits([14, 19]); setExpandedFlights({});
     try { window.localStorage.removeItem(PSGC_SOURCE_NOTE_DISMISSED_KEY); } catch { /* The note still appears for this session. */ }
     setPsgcSourceNoteDismissed(false);
@@ -287,7 +298,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
     beginFixtureLoad();
     const fixture = loadGobarHendraSplitNineFixture(courses);
     if (!fixture) { setFixtureLoadError("The Manor demo data could not be matched to a valid local course with complete PAR data."); return; }
-    setName(fixture.name); setRoundCount(1); setRounds(fixture.rounds); setTournamentScores(fixture.scores); setNovelties([]); setJackpot(defaultJackpotSettings());
+    setName(fixture.name); setRoundCount(1); setRounds(fixture.rounds); setTournamentScores(fixture.scores); setNovelties([]); setJackpot(defaultJackpotSettings()); setPairingGroups({});
     setScoringSystem(fixture.scoringSystem); setTournamentFormat(fixture.tournamentFormat); setSystem36AwardMode("gross-nett"); setHandicapAwardMode("gross-nett"); setHandicapNettTieBreakMethod("countback"); setOverallAwards(true); setAdditionalNettAwards(0); setFlights(2); setFlightLimits([12]); setExpandedFlights({});
     setFixtureLoadError(""); setFixtureLoadNotice(""); finishFixtureLoad();
   };
@@ -383,7 +394,7 @@ export function SimpleTournamentTool({ courses }: { courses: ScoringCourse[] }) 
         <div className="round-setup-list">{rounds.map((round, index) => { const course = round.courseId === null ? undefined : courseById.get(round.courseId); return <article key={round.id} className="round-setup"><b>Round {index + 1}</b><label>Golf course<CourseCombobox courses={courses} selectedCourse={course} onSelect={(selected) => updateRound(round.id, { courseId: selected.id })} /></label><label>Number of players<input type="text" inputMode="numeric" value={tournamentScores[round.id]?.length ?? round.players ?? ""} placeholder="Enter number of players" readOnly={tournamentScores[round.id] !== undefined} title={tournamentScores[round.id] !== undefined ? "Managed from the Score Entry roster" : undefined} onChange={(event) => { if (event.target.value === "") { updateRound(round.id, { players: null }); return; } const value = Number(event.target.value); if (Number.isInteger(value) && value >= 1 && value <= 200) updateRound(round.id, { players: value }); }} /></label><span className={course ? (course.pars ? "par-ready" : "par-missing") : "par-empty"}>{course ? (course.pars ? `Par ${course.pars.reduce((total, par) => total + par, 0)} loaded automatically` : "Unavailable for scoring — missing or invalid PAR data") : "Select a course to load PAR"}</span></article>; })}</div>
         <div className="step-action"><button className="primary-button" disabled={!canScore} onClick={() => setStep(2)}>Continue to Score Entry →</button>{!canScore && <small>Choose valid courses with complete hole PAR data to continue.</small>}</div>
       </section>}
-      {step === 2 && <>{fixtureLoadNotice && !psgcSourceNoteDismissed && <div className="fixture-load-notice" role="status"><span>{fixtureLoadNotice}</span><button type="button" aria-label="Dismiss source note" title="Dismiss source note" onClick={() => { setPsgcSourceNoteDismissed(true); try { window.localStorage.setItem(PSGC_SOURCE_NOTE_DISMISSED_KEY, "dismissed"); } catch { /* Dismissal still applies for this session. */ } }}>×</button></div>}<ScoreEntry key={scoreEntryRevision} tournamentName={name} rounds={rounds} courses={courseById} savedScores={tournamentScores} scoringSystem={scoringSystem} tournamentFormat={tournamentFormat} jackpotEnabled={jackpot.enabled} jackpotMode={jackpot.mode} jackpotBlindHoles={jackpot.revealed ? jackpot.blindHoles : []} jackpotRevealed={jackpot.revealed} onScoresChange={updateTournamentScores} onHandicapChange={(playerId, handicap) => setTournamentScores((current) => Object.fromEntries(Object.entries(current).map(([round, players]) => [round, players.map((player) => player.id === playerId ? { ...player, handicap } : player)])))} onBack={() => setStep(1)} onContinue={(scores) => { updateTournamentScores(scores); setStep(3); }} /></>}
+      {step === 2 && <>{fixtureLoadNotice && !psgcSourceNoteDismissed && <div className="fixture-load-notice" role="status"><span>{fixtureLoadNotice}</span><button type="button" aria-label="Dismiss source note" title="Dismiss source note" onClick={() => { setPsgcSourceNoteDismissed(true); try { window.localStorage.setItem(PSGC_SOURCE_NOTE_DISMISSED_KEY, "dismissed"); } catch { /* Dismissal still applies for this session. */ } }}>×</button></div>}<ScoreEntry key={scoreEntryRevision} tournamentName={name} rounds={rounds} courses={courseById} savedScores={tournamentScores} pairingGroups={pairingGroups} onPairingGroupsChange={(roundId, codes) => { setSaveStatus("saving"); setPairingGroups((current) => ({ ...current, [roundId]: codes })); }} saveStatus={saveStatus} scoringSystem={scoringSystem} tournamentFormat={tournamentFormat} jackpotEnabled={jackpot.enabled} jackpotMode={jackpot.mode} jackpotBlindHoles={jackpot.revealed ? jackpot.blindHoles : []} jackpotRevealed={jackpot.revealed} onScoresChange={updateTournamentScores} onHandicapChange={(playerId, handicap) => setTournamentScores((current) => Object.fromEntries(Object.entries(current).map(([round, players]) => [round, players.map((player) => player.id === playerId ? { ...player, handicap } : player)])))} onBack={() => setStep(1)} onContinue={(scores) => { updateTournamentScores(scores); setStep(3); }} /></>}
       {step === 3 && <section className="awards-step">
         <div className="awards-page-header"><div className="step-intro"><p>STEP 3</p><h1>Winners & awards</h1><span>Only players with a complete scorecard in every round are eligible for final awards.</span></div><div className="winner-export-actions"><button className="secondary-button" type="button" disabled={isExporting} onClick={saveWinnersImage}>{isExporting ? "Saving…" : "Save as Image"}</button><button className="secondary-button" type="button" onClick={exportResultsCsv}>Export Awards CSV</button></div></div>
         {exportError && <p className="validation-error">{exportError}</p>}

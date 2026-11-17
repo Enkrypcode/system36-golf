@@ -57,7 +57,7 @@ function metadataFor(row: unknown[], headers: HeaderIndexes) {
   return { handicap, awardCategory, pairing };
 }
 
-function parseCsv(text: string): string[][] {
+export function parseCsv(text: string): string[][] {
   const rows: string[][] = []; let row: string[] = []; let cell = ""; let quoted = false;
   for (let index = 0; index < text.length; index += 1) {
     const character = text[index];

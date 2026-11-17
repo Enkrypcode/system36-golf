@@ -6,9 +6,9 @@ const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "bas
 export const sortPairingCodes = (codes: string[]) => [...new Set(codes)].sort(collator.compare);
 export const pairingSearchText = (text: string) => text.trim().replace(/\s+/g, " ").toLocaleLowerCase();
 
-export function createPairingDraft(players: Player[]): PairingDraft {
+export function createPairingDraft(players: Player[], savedCodes: string[] = []): PairingDraft {
   const assignments = Object.fromEntries(players.filter((player) => player.name.trim()).map((player) => [player.id, normalizePairingCode(player.pairing)]));
-  return { codes: sortPairingCodes(Object.values(assignments).filter(Boolean)), assignments };
+  return { codes: sortPairingCodes([...savedCodes, ...Object.values(assignments).filter(Boolean)]), assignments };
 }
 
 export function addPairing(draft: PairingDraft, rawCode: string): { draft: PairingDraft; error?: string } {

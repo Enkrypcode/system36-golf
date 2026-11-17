@@ -20,6 +20,19 @@ test("pairing creation normalizes codes and prevents blank or duplicate groups",
   assert.equal(pairingSearchText(" Other   player "), "other player");
 });
 
+test("empty pairing groups persist by round alongside the existing player assignments", () => {
+  const draft = addPairing(createPairingDraft(roster), "9B").draft;
+  const saved = parseSavedTournament(serializeTournament({
+    version: 1, step: 2, name: "Autosave", roundCount: 2,
+    rounds: [{ id: 1, courseId: 1, players: 2 }, { id: 2, courseId: 1, players: 2 }],
+    tournamentScores: { 1: roster, 2: roster }, pairingGroups: { 1: draft.codes, 2: ["2A"] },
+    flights: 0, flightLimits: [],
+  }));
+  assert.ok(saved);
+  assert.deepEqual(createPairingDraft(saved.tournamentScores[1], saved.pairingGroups?.[1]).codes, ["7A", "9B"]);
+  assert.deepEqual(saved.pairingGroups?.[2], ["2A"]);
+});
+
 test("assign, move, and remove use one assignment per stable player identity", () => {
   let draft = addPairing(createPairingDraft(roster), "1A").draft;
   draft = assignPairing(draft, "b", "1A");

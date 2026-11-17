@@ -11,6 +11,7 @@ export type SavedTournament = {
   playDate?: string;
   sourceCourse?: string;
   whsFlightFormat?: WhsFlightFormat;
+  pairingGroups?: Record<number, string[]>;
   tournamentScores: Record<number, Player[]>; flights: number; flightLimits: number[]; overallAwards?: boolean; additionalNettAwards?: number;
   scoringSystem?: ScoringSystem; tournamentFormat?: TournamentFormat; awardMode?: AwardMode; system36AwardMode?: AwardMode; handicapAwardMode?: AwardMode; nettTieBreakMethod?: NettTieBreakMethod; system36NettTieBreakMethod?: NettTieBreakMethod; handicapNettTieBreakMethod?: NettTieBreakMethod; novelties?: NoveltyEntry[]; jackpot?: JackpotSettings;
 };
@@ -74,6 +75,14 @@ export function parseSavedTournament(raw: string | null): SavedTournament | null
       && (round.courseId === null || (Number.isInteger(round.courseId) && (round.courseId as number) > 0))
       && (round.players === null || (Number.isInteger(round.players) && (round.players as number) >= 1 && (round.players as number) <= 200)))) return null;
     const tournamentScores: Record<number, Player[]> = {};
+    const pairingGroups: Record<number, string[]> = {};
+    if (isObject(value.pairingGroups)) {
+      for (const [roundId, codes] of Object.entries(value.pairingGroups)) {
+        if (ids.has(Number(roundId)) && Array.isArray(codes) && codes.every((code) => typeof code === "string")) {
+          pairingGroups[Number(roundId)] = [...new Set(codes.map((code) => code.trim().toLocaleUpperCase()).filter(Boolean))];
+        }
+      }
+    }
     for (const [roundId, players] of Object.entries(value.tournamentScores)) {
       const id = Number(roundId);
       if (!Number.isInteger(id) || !ids.has(id) || !Array.isArray(players) || !players.every(isPlayer)) return null;
@@ -94,7 +103,7 @@ export function parseSavedTournament(raw: string | null): SavedTournament | null
       }));
     }
     const whsFlightFormat: WhsFlightFormat | undefined = tournamentFormat === "whs" ? value.whsFlightFormat === "A-C" || value.whsFlightFormat === "A-D" ? value.whsFlightFormat : Object.values(tournamentScores).flat().some((player) => player.awardCategory === "D") ? "A-D" : "A-C" : undefined;
-    return { version: 1, step: value.step as 1 | 2 | 3, name: value.name, roundCount: value.roundCount as number, rounds: rounds as SavedTournamentRound[], tournamentScores, flights: value.flights as number, flightLimits: value.flightLimits as number[], scoringSystem, tournamentFormat, overallAwards, ...(value.playDate === undefined ? {} : { playDate: value.playDate as string }), ...(value.sourceCourse === undefined ? {} : { sourceCourse: value.sourceCourse as string }), ...(whsFlightFormat === undefined ? {} : { whsFlightFormat }), ...(savedAdditionalNettAwards === undefined && additionalNettAwards === 0 ? {} : { additionalNettAwards }), awardMode, system36AwardMode, handicapAwardMode, nettTieBreakMethod, system36NettTieBreakMethod, handicapNettTieBreakMethod, jackpot, ...(value.novelties === undefined ? {} : { novelties: value.novelties as NoveltyEntry[] }) };
+    return { version: 1, step: value.step as 1 | 2 | 3, name: value.name, roundCount: value.roundCount as number, rounds: rounds as SavedTournamentRound[], tournamentScores, ...(value.pairingGroups === undefined ? {} : { pairingGroups }), flights: value.flights as number, flightLimits: value.flightLimits as number[], scoringSystem, tournamentFormat, overallAwards, ...(value.playDate === undefined ? {} : { playDate: value.playDate as string }), ...(value.sourceCourse === undefined ? {} : { sourceCourse: value.sourceCourse as string }), ...(whsFlightFormat === undefined ? {} : { whsFlightFormat }), ...(savedAdditionalNettAwards === undefined && additionalNettAwards === 0 ? {} : { additionalNettAwards }), awardMode, system36AwardMode, handicapAwardMode, nettTieBreakMethod, system36NettTieBreakMethod, handicapNettTieBreakMethod, jackpot, ...(value.novelties === undefined ? {} : { novelties: value.novelties as NoveltyEntry[] }) };
   } catch { return null; }
 }
 export const serializeTournament = (tournament: SavedTournament) => JSON.stringify(tournament);

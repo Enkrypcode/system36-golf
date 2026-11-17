@@ -645,6 +645,12 @@
 .pairing-unassigned { color: #a15b19; font-weight: bold; }
 .pairing-builder-body { overflow: auto; min-height: 0; padding: 16px 20px; }
 .pairing-builder-create form, .pairing-builder-create details>div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pairing-import-open { margin-top: 12px; }
+.pairing-import-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+.pairing-import-changes { overflow: auto; max-height: 280px; margin-top: 16px; background: #fff; }
+.pairing-import-changes table { width: 100%; border-collapse: collapse; }
+.pairing-import-changes th, .pairing-import-changes td { padding: 9px; text-align: left; border-bottom: 1px solid #d5e0e9; overflow-wrap: anywhere; }
+.pairing-import-changes th { color: #355a76; background: #edf3f7; }
 .pairing-builder-create details { margin-top: 12px; }
 .pairing-builder-create summary { cursor: pointer; color: #126db5; }
 .pairing-builder-create details>div { margin-top: 8px; }

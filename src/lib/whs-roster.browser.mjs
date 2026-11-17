@@ -27,8 +27,20 @@ try {
   socket.onmessage = ({ data }) => { const message = JSON.parse(data); if (message.method === "Runtime.exceptionThrown") console.error(JSON.stringify(message.params)); if (!message.id) return; const task = pending.get(message.id); if (!task) return; pending.delete(message.id); if (message.error) task.reject(Error(message.error.message)); else task.resolve(message.result); };
   const call = (method, params = {}) => new Promise((resolve, reject) => { const id = ++serial; pending.set(id, { resolve, reject }); socket.send(JSON.stringify({ id, method, params })); });
   await call("Runtime.enable");
+  await call("Page.enable");
   const evaluate = async (expression) => { const response = await call("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }); if (response.exceptionDetails) throw Error(response.exceptionDetails.text); return response.result.value; };
   const waitFor = async (expression) => { for (let attempt = 0; attempt < 100; attempt++) { if (await evaluate(expression).catch(() => false)) return; await sleep(100); } throw Error(`Timed out: ${expression}`); };
+  const reloadSeededTournament = async () => {
+    // Seed fixture changes after pagehide flushes the current app state.
+    const saved = await evaluate(`localStorage.getItem('system36:tournament:v1')`);
+    const token = String(Date.now());
+    const script = await call("Page.addScriptToEvaluateOnNewDocument", {
+      source: `localStorage.setItem('system36:tournament:v1', ${JSON.stringify(saved)}); window.__fixtureLoaded = ${JSON.stringify(token)};`,
+    });
+    await call("Page.reload");
+    await waitFor(`window.__fixtureLoaded === ${JSON.stringify(token)} && document.readyState === 'complete'`);
+    await call("Page.removeScriptToEvaluateOnNewDocument", { identifier: script.identifier });
+  };
   await waitFor(`!!document.querySelector('.whs-import-action button')`);
   await sleep(1000);
   const roster = { format: "whs-play-setup-v1", tournamentName: "Browser Cup", playDate: "2026-11-11", course: "Course requiring manual match", flightFormat: "A-D",
@@ -68,9 +80,13 @@ try {
   await evaluate(`document.querySelector('.pairing-builder-create form button').click()`);
   await setInput('[aria-label="Search players for 1A"]', "browser player 0");
   await evaluate(`document.querySelector('.pairing-picker-results button').click()`);
-  await evaluate(`Array.from(document.querySelectorAll('.pairing-builder-dialog footer button')).find(b => b.textContent === 'Cancel').click()`);
-  assert.equal(await evaluate(`document.querySelector('.pairing-cell input').value`), "");
+  await waitFor(`JSON.parse(localStorage.getItem('system36:tournament:v1')).tournamentScores[1][0].pairing === '1A'`);
+  await call("Page.reload");
+  await waitFor(`!!document.querySelector('.pairing-builder-open')`);
+  assert.equal(await evaluate(`document.querySelector('.pairing-cell input').value`), "1A");
   await evaluate(`document.querySelector('.pairing-builder-open').click()`);
+  await waitFor(`!!document.querySelector('[aria-label="Remove Browser Player 0 from 1A"]')`);
+  await evaluate(`document.querySelector('[aria-label="Remove Browser Player 0 from 1A"]').click()`);
   await evaluate(`document.querySelector('.pairing-builder-create details').open = true; document.querySelector('.pairing-builder-create details button').click()`);
   await waitFor(`document.querySelectorAll('.pairing-builder-card').length === 18`);
   await setInput('[aria-label="New pairing code"]', "1a");
@@ -94,8 +110,7 @@ try {
   await waitFor(`document.querySelector('.pairing-cell input').value === '2B'`);
   await setInput('.pairing-cell input', "7A");
   await evaluate(`document.querySelector('.pairing-builder-open').click()`);
-  await waitFor(`document.querySelector('.pairing-builder-card')?.textContent.includes('7A')`);
-  assert.equal(await evaluate(`document.querySelector('.pairing-builder-card').textContent.includes('Browser Player 0')`), true);
+  await waitFor(`Array.from(document.querySelectorAll('.pairing-builder-card')).some(c => c.textContent.includes('7A') && c.textContent.includes('Browser Player 0'))`);
   for (const width of [1280, 768, 390]) {
     await call("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false });
     assert.equal(await evaluate(`(() => {
@@ -113,9 +128,33 @@ try {
     saved.jackpot = { enabled: true, mode: 'blind-hole', blindHoles: [2, 4, 11, 13], locked: true, revealed: false };
     localStorage.setItem(key, JSON.stringify(saved));
   })()`);
-  await call("Page.reload");
+  await reloadSeededTournament();
   await waitFor(`!!document.querySelector('.score-table .sticky-jackpot-back')`);
   assert.equal(await evaluate(`document.querySelector('.pairing-cell input').value`), "7A");
+  await evaluate(`document.querySelector('.pairing-builder-open').click()`);
+  await waitFor(`!!document.querySelector('.pairing-builder-dialog[open]')`);
+  await waitFor(`document.querySelectorAll('.pairing-builder-card').length === 18`);
+  const beforePairingImport = await evaluate(`JSON.stringify(JSON.parse(localStorage.getItem('system36:tournament:v1')).tournamentScores[1].map(({pairing,...player}) => player))`);
+  const selectPairingFile = async (file) => {
+    const document = await call("DOM.getDocument");
+    const input = await call("DOM.querySelector", { nodeId: document.root.nodeId, selector: '[aria-label="Choose pairing import file"]' });
+    await call("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [file] });
+    await waitFor(`!!document.querySelector('.pairing-import-preview')`);
+  };
+  const pairingCsv = path.join(profile, "pairings.csv");
+  await writeFile(pairingCsv, "Player Name,Group\nBrowser Player 0,9b\nUnknown Player,9A");
+  await selectPairingFile(pairingCsv);
+  assert.equal(await evaluate(`document.querySelector('.pairing-import-preview').textContent.includes('1 unmatched')`), true);
+  assert.equal(await evaluate(`document.querySelector('.pairing-cell input').value`), "7A", "preview does not apply");
+  await evaluate(`document.querySelector('.pairing-import-actions .secondary-button').click()`);
+  await selectPairingFile(path.resolve("src/lib/fixtures/pairing-import.xlsx"));
+  await evaluate(`document.querySelector('.pairing-import-actions .primary-button').click()`);
+  await waitFor(`Array.from(document.querySelectorAll('.pairing-builder-card')).some(c => c.textContent.includes('8B') && c.textContent.includes('Browser Player 0'))`);
+  await evaluate(`document.querySelector('[aria-label="Close Pairing Builder"]').click()`);
+  await waitFor(`JSON.parse(localStorage.getItem('system36:tournament:v1')).tournamentScores[1][0].pairing === '8B'`);
+  assert.equal(await evaluate(`JSON.stringify(JSON.parse(localStorage.getItem('system36:tournament:v1')).tournamentScores[1].map(({pairing,...player}) => player))`), beforePairingImport);
+  await call("Page.reload");
+  await waitFor(`document.querySelector('.pairing-cell input')?.value === '8B'`);
   for (const width of [1440, 1024, 768, 390]) {
     await call("Emulation.setDeviceMetricsOverride", { width, height: 850, deviceScaleFactor: 1, mobile: false });
     const reachable = await evaluate(`(() => {
@@ -158,13 +197,13 @@ try {
   await evaluate(`document.querySelector('.whs-roster-dialog .secondary-button').click()`);
   await sleep(500);
   await evaluate(`(() => { const key='system36:tournament:v1'; const saved=JSON.parse(localStorage.getItem(key)); saved.step=3; saved.tournamentScores[1]=saved.tournamentScores[1].map((player,index)=>({...player,scores:Array(18).fill(4).map((score,hole)=>hole===0?score+index%3:score)})); localStorage.setItem(key,JSON.stringify(saved)); })()`);
-  await call("Page.reload");
+  await reloadSeededTournament();
   await waitFor(`document.querySelector('.awards-step') && document.querySelector('.tournament-summary-panel')?.textContent.includes('72')`);
   assert.equal(await evaluate(`document.querySelector('.tournament-summary-panel').textContent.includes('Flight D')`), true);
   assert.equal(await evaluate(`document.querySelector('.tournament-summary-panel').textContent.includes('Super Senior')`), true);
   assert.equal(await evaluate(`document.querySelector('.winner-results').textContent.includes('BGD')`), true);
   assert.equal(await evaluate(`document.querySelector('.winner-results').textContent.includes('BN 1 SS')`), true);
-  console.log("PASS WHS roster browser: Pairing Builder create/assign/move/cancel/apply, filter/sort/manual edit/refresh, responsive modal, score scrolling, WHS import and Winners");
+  console.log("PASS browser: Pairing Builder autosave, empty groups after refresh, CSV preview/cancel, XLSX apply, metadata preservation, filters/sorting, responsive layout, WHS import and Winners");
 } finally {
   socket?.close(); chrome.kill(); server.kill();
   await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
