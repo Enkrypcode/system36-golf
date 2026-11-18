@@ -436,6 +436,20 @@
   overflow-wrap: anywhere;
 }
 .score-import-dialog::backdrop { background: rgba(21,49,75,.28); }
+.snapshot-dialog { position: fixed; inset: 0; margin: auto; width: min(460px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow: auto; color: #15314b; }
+.snapshot-dialog::backdrop { background: rgba(21,49,75,.28); }
+.snapshot-dialog label { display: grid; gap: 6px; margin-top: 14px; color: #355a76; }
+.snapshot-dialog input { width: 100%; padding: 9px; border: 1px solid #cbd7e1; border-radius: 5px; font-size: 16px; }
+.snapshot-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
+.snapshot-dialog .snapshot-actions { justify-content: flex-end; }
+.snapshot-notice { color: #157454; font-size: 11px; }
+.saved-tournament-list > h3, .historical-data-heading { margin: 20px 0 12px; font-size: 12px; color: #355a76; text-transform: uppercase; letter-spacing: .5px; }
+.saved-tournament-list h4 { margin: 0 0 9px; color: #1769aa; font-size: 14px; overflow-wrap: anywhere; }
+.saved-tournament-list article { margin-top: 12px; }
+.saved-tournament-list details { position: relative; }
+.saved-tournament-list summary { cursor: pointer; padding: 5px 12px; border: 1px solid #cbd7e1; border-radius: 4px; }
+.saved-tournament-list details button { padding: 8px; margin: 4px; border: 1px solid #cbd7e1; border-radius: 4px; background: #fff; color: #355a76; }
+.load-data-dialog { max-height: calc(100dvh - 40px); min-width: 0; overflow: auto; overflow-wrap: anywhere; }
 .score-import-dialog > .score-import-summary,
 .score-import-dialog > .score-import-issues { display: grid; min-width: 0; text-align: left; }
 .score-import-dialog > .score-import-summary { justify-content: normal; }

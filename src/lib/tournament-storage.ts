@@ -1,5 +1,6 @@
 import type { AwardMode, NettTieBreakMethod, Player, ScoringSystem, TournamentFormat } from "./scoring.ts";
 import type { WhsFlightFormat } from "./whs-roster.ts";
+import type { ScoringCourse } from "./course-catalog.ts";
 import { isNoveltyEntry, type NoveltyEntry } from "./novelties.ts";
 import { defaultJackpotSettings, isValidBlindHoles, normalizeBlindHoles, type JackpotSettings } from "./jackpot.ts";
 
@@ -12,6 +13,7 @@ export type SavedTournament = {
   sourceCourse?: string;
   whsFlightFormat?: WhsFlightFormat;
   pairingGroups?: Record<number, string[]>;
+  courseData?: ScoringCourse[];
   tournamentScores: Record<number, Player[]>; flights: number; flightLimits: number[]; overallAwards?: boolean; additionalNettAwards?: number;
   scoringSystem?: ScoringSystem; tournamentFormat?: TournamentFormat; awardMode?: AwardMode; system36AwardMode?: AwardMode; handicapAwardMode?: AwardMode; nettTieBreakMethod?: NettTieBreakMethod; system36NettTieBreakMethod?: NettTieBreakMethod; handicapNettTieBreakMethod?: NettTieBreakMethod; novelties?: NoveltyEntry[]; jackpot?: JackpotSettings;
 };
@@ -75,6 +77,18 @@ export function parseSavedTournament(raw: string | null): SavedTournament | null
       && (round.courseId === null || (Number.isInteger(round.courseId) && (round.courseId as number) > 0))
       && (round.players === null || (Number.isInteger(round.players) && (round.players as number) >= 1 && (round.players as number) <= 200)))) return null;
     const tournamentScores: Record<number, Player[]> = {};
+    const courseData: ScoringCourse[] = [];
+    if (value.courseData !== undefined) {
+      if (!Array.isArray(value.courseData)) return null;
+      const courseIds = new Set<number>();
+      for (const course of value.courseData) {
+        if (!isObject(course) || !Number.isInteger(course.id) || (course.id as number) < 1 || courseIds.has(course.id as number)
+          || typeof course.name !== "string" || !course.name.trim()
+          || (course.pars !== null && (!Array.isArray(course.pars) || course.pars.length !== 18 || !course.pars.every((par) => Number.isInteger(par) && (par as number) >= 3 && (par as number) <= 6)))) return null;
+        courseIds.add(course.id as number);
+        courseData.push({ id: course.id as number, name: course.name, pars: course.pars === null ? null : [...course.pars as number[]] });
+      }
+    }
     const pairingGroups: Record<number, string[]> = {};
     if (isObject(value.pairingGroups)) {
       for (const [roundId, codes] of Object.entries(value.pairingGroups)) {
@@ -103,7 +117,7 @@ export function parseSavedTournament(raw: string | null): SavedTournament | null
       }));
     }
     const whsFlightFormat: WhsFlightFormat | undefined = tournamentFormat === "whs" ? value.whsFlightFormat === "A-C" || value.whsFlightFormat === "A-D" ? value.whsFlightFormat : Object.values(tournamentScores).flat().some((player) => player.awardCategory === "D") ? "A-D" : "A-C" : undefined;
-    return { version: 1, step: value.step as 1 | 2 | 3, name: value.name, roundCount: value.roundCount as number, rounds: rounds as SavedTournamentRound[], tournamentScores, ...(value.pairingGroups === undefined ? {} : { pairingGroups }), flights: value.flights as number, flightLimits: value.flightLimits as number[], scoringSystem, tournamentFormat, overallAwards, ...(value.playDate === undefined ? {} : { playDate: value.playDate as string }), ...(value.sourceCourse === undefined ? {} : { sourceCourse: value.sourceCourse as string }), ...(whsFlightFormat === undefined ? {} : { whsFlightFormat }), ...(savedAdditionalNettAwards === undefined && additionalNettAwards === 0 ? {} : { additionalNettAwards }), awardMode, system36AwardMode, handicapAwardMode, nettTieBreakMethod, system36NettTieBreakMethod, handicapNettTieBreakMethod, jackpot, ...(value.novelties === undefined ? {} : { novelties: value.novelties as NoveltyEntry[] }) };
+    return { version: 1, step: value.step as 1 | 2 | 3, name: value.name, roundCount: value.roundCount as number, rounds: rounds as SavedTournamentRound[], tournamentScores, ...(value.courseData === undefined ? {} : { courseData }), ...(value.pairingGroups === undefined ? {} : { pairingGroups }), flights: value.flights as number, flightLimits: value.flightLimits as number[], scoringSystem, tournamentFormat, overallAwards, ...(value.playDate === undefined ? {} : { playDate: value.playDate as string }), ...(value.sourceCourse === undefined ? {} : { sourceCourse: value.sourceCourse as string }), ...(whsFlightFormat === undefined ? {} : { whsFlightFormat }), ...(savedAdditionalNettAwards === undefined && additionalNettAwards === 0 ? {} : { additionalNettAwards }), awardMode, system36AwardMode, handicapAwardMode, nettTieBreakMethod, system36NettTieBreakMethod, handicapNettTieBreakMethod, jackpot, ...(value.novelties === undefined ? {} : { novelties: value.novelties as NoveltyEntry[] }) };
   } catch { return null; }
 }
 export const serializeTournament = (tournament: SavedTournament) => JSON.stringify(tournament);
